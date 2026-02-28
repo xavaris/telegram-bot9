@@ -663,10 +663,11 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>❌ VIP USUNIĘTY:</b> @{username}",
         parse_mode="HTML"
     )
-    async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+   async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
 
+    # Guard: tylko VIP vendor
     if not user.username or not is_vip_vendor(user.username.lower()):
         await query.edit_message_text("<b>BRAK DOSTĘPU.</b>", parse_mode="HTML")
         return
@@ -844,7 +845,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("SOP", callback_data="CITY_SOP")]
             ]
 
-            await query.edit_message_text(
+            (
                 "<b>WYBIERZ MIASTO:</b>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(keyboard)
@@ -1263,5 +1264,6 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
