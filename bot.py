@@ -704,14 +704,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]]
 
         if user.username and is_vip_vendor(user.username.lower()):
-            keyboard.append([
-                InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")
-            ])
+            keyboard.append([InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")])
 
         if user.id == ADMIN_ID:
-            keyboard.append([
-                InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")
-            ])
+            keyboard.append([InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")])
 
         await query.edit_message_text(
             "<b>WYBIERZ TYP OGŁOSZENIA:</b>",
@@ -749,10 +745,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = last_ads.get(user.id)
 
         if not data:
-            await query.edit_message_text(
-                "<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>",
-                parse_mode="HTML"
-            )
+            await query.edit_message_text("<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>", parse_mode="HTML")
             return
 
         context.user_data["wts_products"] = data["products"]
@@ -764,7 +757,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= NOWE WTS =================
     if query.data == "NEW_WTS":
-
         if not user.username:
             await query.edit_message_text(
                 "<b>❌ Aby publikować WTS musisz ustawić @username.</b>",
@@ -778,7 +770,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= SIM NETWORK SELECTION =================
     if query.data.startswith("NET_"):
-
         if not context.user_data.get("selecting_sim_network"):
             return
 
@@ -799,7 +790,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         if query.data == "NET_DONE":
-
             selected = context.user_data.get("selected_networks", [])
 
             if not selected:
@@ -836,21 +826,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        else:
-            network = network_map.get(query.data)
-            if not network:
-                return
-
-            selected = context.user_data.get("selected_networks", [])
-
-            if network in selected:
-                selected.remove(network)
-                await query.answer("Usunięto ❌")
-            else:
-                selected.append(network)
-                await query.answer("Dodano ✅")
-
+        network = network_map.get(query.data)
+        if not network:
             return
+
+        selected = context.user_data.get("selected_networks", [])
+
+        if network in selected:
+            selected.remove(network)
+            await query.answer("Usunięto ❌")
+        else:
+            selected.append(network)
+            await query.answer("Dodano ✅")
+        return
 
     # ================= WTS =================
     if query.data == "WTS":
@@ -868,17 +856,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         context.user_data["vendor"] = vendor
-
         keyboard = []
 
         if user.id in last_ads:
-            keyboard.append([
-                InlineKeyboardButton("🚀 POST (Wyślij to samo)", callback_data="FAST_POST")
-            ])
+            keyboard.append([InlineKeyboardButton("🚀 POST (Wyślij to samo)", callback_data="FAST_POST")])
 
-        keyboard.append([
-            InlineKeyboardButton("➕ NOWE OGŁOSZENIE", callback_data="NEW_WTS")
-        ])
+        keyboard.append([InlineKeyboardButton("➕ NOWE OGŁOSZENIE", callback_data="NEW_WTS")])
 
         await query.edit_message_text(
             "<b>PANEL WTS</b>",
@@ -895,7 +878,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= CITY SELECTION =================
     if query.data in ["CITY_GDY", "CITY_GDA", "CITY_SOP"]:
-
         has_wts_flow = "wts_total" in context.user_data or "wts_products" in context.user_data
         has_text_flow = "type" in context.user_data and "content" in context.user_data
 
@@ -935,7 +917,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= WTB / WTT =================
     if query.data in ["WTB", "WTT"]:
-
         if not user.username:
             await query.edit_message_text(
                 "<b>❌ Aby dodać ogłoszenie musisz ustawić @username w Telegramie.</b>",
@@ -946,7 +927,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["type"] = query.data
         await query.edit_message_text("<b>NAPISZ TREŚĆ:</b>", parse_mode="HTML")
         return
-        
+    
 # ================= MESSAGE HANDLER =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -1257,3 +1238,4 @@ def main():
 if __name__ == "__main__":
     main()
     
+
