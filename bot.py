@@ -956,6 +956,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= FAST POST =================
     if query.data == "FAST_POST":
+
+        if time.time() - get_last_post(user.id) < 6 * 60 * 60:
+            await query.answer("COOLDOWN 6H.", show_alert=True)
+            return
+
         data = last_ads.get(user.id)
 
         if not data:
@@ -965,6 +970,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["wts_products"] = data["products"]
         context.user_data["city"] = data["city"]
         context.user_data["options"] = data["options"]
+        context.user_data["shop_link"] = data.get("shop_link")
+        context.user_data["legit_link"] = data.get("legit_link")
 
         await finalize_publish(update, context)
         return
@@ -1338,7 +1345,6 @@ async def ask_product_count(query):
     )
 
 
-# ================= FINALIZE PUBLISH =================
 async def finalize_publish(update, context):
     user = update.effective_user
     username = user.username.lower()
@@ -1369,7 +1375,7 @@ async def finalize_publish(update, context):
     vendor_data = get_vendor(username)
 
     # 🔥 WYBÓR LAYOUTU
-    if is_vip_vendor(username):
+    if is_vip_vendor(username) and shop_link is not None:
         caption = vip_template(
             username,
             content,
@@ -1417,9 +1423,20 @@ async def finalize_publish(update, context):
 
     context.user_data.clear()
 
+    # ✅ POWRÓT DO MENU
+    keyboard = [[
+        InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
+        InlineKeyboardButton("💼 WTS", callback_data="WTS"),
+        InlineKeyboardButton("🔁 WTT", callback_data="WTT"),
+    ]]
+
+    if is_vip_vendor(username):
+        keyboard.append([InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")])
+
     await user.send_message(
-        "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
-        parse_mode="HTML"
+        "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>\n\n<b>WRACAMY DO MENU:</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     
 # ================= MAIN =================
@@ -1451,6 +1468,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
