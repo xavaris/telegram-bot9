@@ -40,9 +40,16 @@ CREATE TABLE IF NOT EXISTS vendors (
     added_at TEXT,
     city TEXT,
     options TEXT,
-    posts INTEGER DEFAULT 0
+    posts INTEGER DEFAULT 0,
+    vip INTEGER DEFAULT 0
 )
 """)
+
+# Migracja dla istniejących baz (jeśli kolumna vip już jest, to poleci błąd -> ignorujemy)
+try:
+    cursor.execute("ALTER TABLE vendors ADD COLUMN vip INTEGER DEFAULT 0")
+except sqlite3.OperationalError:
+    pass
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS cooldowns (
@@ -234,25 +241,34 @@ def contains_price_hardcore(text: str) -> bool:
 
 # ================= DB HELPERS =================
 def get_vendor(username):
-    cursor.execute("SELECT * FROM vendors WHERE username=?", (username,))
+    cursor.execute(
+        "SELECT username, added_at, city, options, posts, vip FROM vendors WHERE username=?",
+        (username,)
+    )
     return cursor.fetchone()
+
 
 def add_vendor(username):
     if get_vendor(username):
         return False
     now = datetime.now().strftime("%d.%m.%Y")
-    cursor.execute("INSERT INTO vendors VALUES(?,?,?,?,?)",
-                   (username, now, None, None, 0))
+    cursor.execute(
+        "INSERT INTO vendors (username, added_at, city, options, posts, vip) VALUES (?,?,?,?,?,?)",
+        (username, now, None, None, 0, 0)
+    )
     conn.commit()
     return True
+
 
 def remove_vendor(username):
     cursor.execute("DELETE FROM vendors WHERE username=?", (username,))
     conn.commit()
 
+
 def list_vendors():
-    cursor.execute("SELECT username, added_at, posts FROM vendors")
+    cursor.execute("SELECT username, added_at, posts, vip FROM vendors")
     return cursor.fetchall()
+
 
 def update_vendor_settings(username, city, options):
     cursor.execute(
@@ -261,6 +277,7 @@ def update_vendor_settings(username, city, options):
     )
     conn.commit()
 
+
 def increment_posts(username):
     cursor.execute(
         "UPDATE vendors SET posts = posts + 1 WHERE username=?",
@@ -268,10 +285,31 @@ def increment_posts(username):
     )
     conn.commit()
 
+
+def is_vip_vendor(username: str) -> bool:
+    row = get_vendor(username)
+    if not row:
+        return False
+    # row: (username, added_at, city, options, posts, vip)
+    return bool(int(row[5]))
+
+
+def set_vip_vendor(username: str, vip: bool = True) -> bool:
+    if not get_vendor(username):
+        return False
+    cursor.execute(
+        "UPDATE vendors SET vip=? WHERE username=?",
+        (1 if vip else 0, username)
+    )
+    conn.commit()
+    return True
+
+
 def get_last_post(user_id):
     cursor.execute("SELECT last_post FROM cooldowns WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     return row[0] if row else 0
+
 
 def set_last_post(user_id):
     cursor.execute("""
@@ -279,12 +317,14 @@ def set_last_post(user_id):
         VALUES(?,?)
         ON CONFLICT(user_id)
         DO UPDATE SET last_post=excluded.last_post
-    """,(user_id,int(time.time())))
+    """, (user_id, int(time.time())))
     conn.commit()
+
 
 def clear_all_cooldowns():
     cursor.execute("DELETE FROM cooldowns")
     conn.commit()
+    
     # ================= PREMIUM TEMPLATE =================
 def premium_template(title, username, content, vendor_data, city, options):
 
@@ -403,8 +443,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         InlineKeyboardButton("🔁 WTT", callback_data="WTT"),
     ]]
 
-    if update.effective_user.id == ADMIN_ID:
-        keyboard.append([InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")])
+    user = update.effective_user
+
+    # ✅ VIP VENDOR przycisk (tylko jeśli vendor ma vip=1)
+    if user.username and is_vip_vendor(user.username.lower()):
+        keyboard.append([
+            InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")
+        ])
+
+    # ✅ ADMIN PANEL (tylko dla admina)
+    if user.id == ADMIN_ID:
+        keyboard.append([
+            InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")
+        ])
 
     await update.message.reply_text(
         "<b>WYBIERZ TYP OGŁOSZENIA:</b>",
@@ -416,17 +467,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_addvendor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
+
     if not context.args:
-        await update.message.reply_text("<b>UŻYJ:</b> /addvendor @username", parse_mode="HTML")
+        await update.message.reply_text(
+            "<b>UŻYJ:</b> /addvendor @username",
+            parse_mode="HTML"
+        )
         return
-    username = context.args[0].replace("@", "").lower()
+
+    username = context.args[0].replace("@", "").strip().lower()
+
+    if not re.fullmatch(r"[a-zA-Z0-9_]{5,32}", username):
+        await update.message.reply_text("<b>❌ ZŁY USERNAME.</b>", parse_mode="HTML")
+        return
+
     if add_vendor(username):
-        await update.message.reply_text("<b>VENDOR DODANY.</b>", parse_mode="HTML")
+        await update.message.reply_text("<b>✅ VENDOR DODANY.</b>", parse_mode="HTML")
     else:
-        await update.message.reply_text("<b>VENDOR JUŻ ISTNIEJE.</b>", parse_mode="HTML")
+        await update.message.reply_text("<b>⚠️ VENDOR JUŻ ISTNIEJE.</b>", parse_mode="HTML")
 
 
-# ================= NOWA KOMENDA: ADD MULTIPLE =================
 async def cmd_addvendors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -451,12 +511,9 @@ async def cmd_addvendors(update: Update, context: ContextTypes.DEFAULT_TYPE):
             skipped.append(name)
             continue
 
-        try:
-            if add_vendor(username):
-                added.append(username)
-            else:
-                skipped.append(username)
-        except:
+        if add_vendor(username):
+            added.append(username)
+        else:
             skipped.append(username)
 
     msg = ""
@@ -471,36 +528,138 @@ async def cmd_addvendors(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_removevendor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
+
     if not context.args:
-        await update.message.reply_text("<b>UŻYJ:</b> /removevendor @username", parse_mode="HTML")
+        await update.message.reply_text(
+            "<b>UŻYJ:</b> /removevendor @username",
+            parse_mode="HTML"
+        )
         return
-    username = context.args[0].replace("@", "").lower()
+
+    username = context.args[0].replace("@", "").strip().lower()
+
+    if not get_vendor(username):
+        await update.message.reply_text("<b>❌ Taki vendor nie istnieje.</b>", parse_mode="HTML")
+        return
+
     remove_vendor(username)
-    await update.message.reply_text("<b>VENDOR USUNIĘTY.</b>", parse_mode="HTML")
+    await update.message.reply_text("<b>🗑 VENDOR USUNIĘTY.</b>", parse_mode="HTML")
 
 
 async def cmd_listvendors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
+
     vendors = list_vendors()
+
     if not vendors:
         await update.message.reply_text("<b>BRAK VENDORÓW.</b>", parse_mode="HTML")
         return
+
     text = ""
+
     for v in vendors:
-        text += f"<b>@{v[0]}</b> | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
+        # v = (username, added_at, posts, vip)
+        vip_badge = " 💎VIP" if int(v[3]) == 1 else ""
+        text += f"<b>@{v[0]}</b>{vip_badge} | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
+
     await update.message.reply_text(text, parse_mode="HTML")
-    # ================= ADMIN PANEL INLINE =================
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+
+async def cmd_setvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "<b>UŻYJ:</b> /setvip @username",
+            parse_mode="HTML"
+        )
+        return
+
+    username = context.args[0].replace("@", "").strip().lower()
+
+    if not re.fullmatch(r"[a-zA-Z0-9_]{5,32}", username):
+        await update.message.reply_text("<b>❌ ZŁY USERNAME.</b>", parse_mode="HTML")
+        return
+
+    if not get_vendor(username):
+        await update.message.reply_text("<b>❌ Vendor nie istnieje.</b>", parse_mode="HTML")
+        return
+
+    set_vip_vendor(username, True)
+
+    await update.message.reply_text(
+        f"<b>💎 VIP NADANY:</b> @{username}",
+        parse_mode="HTML"
+    )
+
+
+async def cmd_unsetvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+
     keyboard = [
         [InlineKeyboardButton("➕ DODAJ VENDORA", callback_data="ADD_VENDOR")],
         [InlineKeyboardButton("➖ USUŃ VENDORA", callback_data="REMOVE_VENDOR")],
         [InlineKeyboardButton("📋 LISTA VENDORÓW", callback_data="LIST_VENDOR")],
         [InlineKeyboardButton("❌ USUŃ COOLDOWN", callback_data="CLEAR_CD")]
     ]
+
     await query.edit_message_text(
         "<b>PANEL ADMINA</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+    if not context.args:
+        await update.message.reply_text(
+            "<b>UŻYJ:</b> /unsetvip @username",
+            parse_mode="HTML"
+        )
+        return
+
+    username = context.args[0].replace("@", "").strip().lower()
+
+    if not re.fullmatch(r"[a-zA-Z0-9_]{5,32}", username):
+        await update.message.reply_text("<b>❌ ZŁY USERNAME.</b>", parse_mode="HTML")
+        return
+
+    if not get_vendor(username):
+        await update.message.reply_text("<b>❌ Vendor nie istnieje.</b>", parse_mode="HTML")
+        return
+
+    set_vip_vendor(username, False)
+
+    await update.message.reply_text(
+        f"<b>❌ VIP USUNIĘTY:</b> @{username}",
+        parse_mode="HTML"
+    )
+    async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+
+    if not user.username or not is_vip_vendor(user.username.lower()):
+        await query.edit_message_text("<b>BRAK DOSTĘPU.</b>", parse_mode="HTML")
+        return
+
+    vendor = get_vendor(user.username.lower())
+    posts = vendor[4] if vendor else 0
+    since = vendor[1] if vendor else "-"
+
+    keyboard = [
+        [InlineKeyboardButton("📊 MOJE STATY", callback_data="VIP_STATS")],
+        [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_BACK_START")]
+    ]
+
+    await query.edit_message_text(
+        f"<b>💎 VIP VENDOR PANEL</b>\n\n"
+        f"<b>👤 @{user.username}</b>\n"
+        f"<b>🗓 OD:</b> {since}\n"
+        f"<b>📊 OGŁOSZEŃ:</b> {posts}",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -511,7 +670,57 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user = query.from_user
 
-    # ADMIN PANEL
+    # ================= VIP PANEL =================
+    if query.data == "VIP_PANEL":
+        await vip_panel(update, context)
+        return
+
+    if query.data == "VIP_STATS":
+        if not user.username or not is_vip_vendor(user.username.lower()):
+            await query.edit_message_text("<b>BRAK DOSTĘPU.</b>", parse_mode="HTML")
+            return
+
+        vendor = get_vendor(user.username.lower())
+        posts = vendor[4] if vendor else 0
+        since = vendor[1] if vendor else "-"
+
+        await query.edit_message_text(
+            f"<b>📊 VIP STATY</b>\n\n"
+            f"<b>👤 @{user.username}</b>\n"
+            f"<b>🗓 OD:</b> {since}\n"
+            f"<b>📊 OGŁOSZEŃ:</b> {posts}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_PANEL")]
+            ])
+        )
+        return
+
+    if query.data == "VIP_BACK_START":
+        keyboard = [[
+            InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
+            InlineKeyboardButton("💼 WTS", callback_data="WTS"),
+            InlineKeyboardButton("🔁 WTT", callback_data="WTT"),
+        ]]
+
+        if user.username and is_vip_vendor(user.username.lower()):
+            keyboard.append([
+                InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")
+            ])
+
+        if user.id == ADMIN_ID:
+            keyboard.append([
+                InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")
+            ])
+
+        await query.edit_message_text(
+            "<b>WYBIERZ TYP OGŁOSZENIA:</b>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    # ================= ADMIN PANEL =================
     if query.data == "ADMIN" and user.id == ADMIN_ID:
         await admin_panel(update, context)
         return
@@ -525,7 +734,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         vendors = list_vendors()
         text = ""
         for v in vendors:
-            text += f"<b>@{v[0]}</b> | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
+            vip_badge = " 💎VIP" if len(v) >= 4 and int(v[3]) == 1 else ""
+            text += f"<b>@{v[0]}</b>{vip_badge} | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
         await query.edit_message_text(text or "<b>BRAK.</b>", parse_mode="HTML")
         return
 
@@ -685,7 +895,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= CITY SELECTION =================
     if query.data in ["CITY_GDY", "CITY_GDA", "CITY_SOP"]:
-        # Guard: nie pozwól wybierać miasta, jeśli nie ma aktywnego flow
+
         has_wts_flow = "wts_total" in context.user_data or "wts_products" in context.user_data
         has_text_flow = "type" in context.user_data and "content" in context.user_data
 
@@ -695,12 +905,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data["city"] = query.data
         context.user_data["options"] = []
+
         keyboard = [
             [InlineKeyboardButton("✈️ DOLOT", callback_data="OPT_DOLOT")],
             [InlineKeyboardButton("🚗 UBER PAKA", callback_data="OPT_UBER")],
             [InlineKeyboardButton("❌ BRAK", callback_data="OPT_BRAK")],
             [InlineKeyboardButton("✅ PUBLIKUJ", callback_data="OPT_DONE")]
         ]
+
         await query.edit_message_text(
             "<b>WYBIERZ OPCJE:</b>",
             parse_mode="HTML",
@@ -709,38 +921,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if query.data in ["OPT_DOLOT", "OPT_UBER"]:
-        # Guard: opcje tylko gdy jest aktywny flow
-        has_wts_flow = "wts_total" in context.user_data or "wts_products" in context.user_data
-        has_text_flow = "type" in context.user_data and "content" in context.user_data
-        if not has_wts_flow and not has_text_flow:
-            await query.answer("To menu jest nieaktywne. Zacznij od /start.", show_alert=True)
-            return
-
-        if query.data not in context.user_data["options"]:
-            context.user_data["options"].append(query.data)
+        if query.data not in context.user_data.get("options", []):
+            context.user_data.setdefault("options", []).append(query.data)
         return
 
     if query.data == "OPT_BRAK":
-        # Guard: jw.
-        has_wts_flow = "wts_total" in context.user_data or "wts_products" in context.user_data
-        has_text_flow = "type" in context.user_data and "content" in context.user_data
-        if not has_wts_flow and not has_text_flow:
-            await query.answer("To menu jest nieaktywne. Zacznij od /start.", show_alert=True)
-            return
-
         context.user_data["options"] = []
         return
 
     if query.data == "OPT_DONE":
-        # Guard: publikuj tylko gdy mamy komplet danych
-        has_wts_flow = "wts_products" in context.user_data and bool(context.user_data.get("wts_products"))
-        has_text_flow = "type" in context.user_data and "content" in context.user_data
-
-        if not has_wts_flow and not has_text_flow:
-            await query.answer("Brak danych do publikacji. Zacznij od /start.", show_alert=True)
-            context.user_data.clear()
-            return
-
         await publish(update, context)
         return
 
@@ -749,8 +938,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not user.username:
             await query.edit_message_text(
-                "<b>❌ Aby dodać ogłoszenie musisz ustawić @username w Telegramie.</b>\n\n"
-                "Ustaw username → wróć i spróbuj ponownie.",
+                "<b>❌ Aby dodać ogłoszenie musisz ustawić @username w Telegramie.</b>",
                 parse_mode="HTML"
             )
             return
@@ -758,7 +946,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["type"] = query.data
         await query.edit_message_text("<b>NAPISZ TREŚĆ:</b>", parse_mode="HTML")
         return
-
+        
 # ================= MESSAGE HANDLER =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -1045,11 +1233,18 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+
+    # ADMIN COMMANDS
     app.add_handler(CommandHandler("addvendor", cmd_addvendor))
-    app.add_handler(CommandHandler("addvendors", cmd_addvendors))  # NOWE
+    app.add_handler(CommandHandler("addvendors", cmd_addvendors))
     app.add_handler(CommandHandler("removevendor", cmd_removevendor))
     app.add_handler(CommandHandler("listvendors", cmd_listvendors))
 
+    # VIP COMMANDS (ADMIN ONLY)
+    app.add_handler(CommandHandler("setvip", cmd_setvip))
+    app.add_handler(CommandHandler("unsetvip", cmd_unsetvip))
+
+    # CALLBACKS + MESSAGES
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
@@ -1061,3 +1256,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
