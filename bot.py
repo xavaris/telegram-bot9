@@ -599,7 +599,32 @@ async def cmd_unsetvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text(
+            "<b>UŻYJ:</b> /unsetvip @username",
+            parse_mode="HTML"
+        )
+        return
+
+    username = context.args[0].replace("@", "").strip().lower()
+
+    if not re.fullmatch(r"[a-zA-Z0-9_]{5,32}", username):
+        await update.message.reply_text("<b>❌ ZŁY USERNAME.</b>", parse_mode="HTML")
+        return
+
+    if not get_vendor(username):
+        await update.message.reply_text("<b>❌ Vendor nie istnieje.</b>", parse_mode="HTML")
+        return
+
+    set_vip_vendor(username, False)
+
+    await update.message.reply_text(
+        f"<b>❌ VIP USUNIĘTY:</b> @{username}",
+        parse_mode="HTML"
+    )
+
+
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
     keyboard = [
@@ -1238,4 +1263,5 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
