@@ -822,7 +822,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("SOP", callback_data="CITY_SOP")]
             ]
 
-            (
+            await query.edit_message_text(
                 "<b>WYBIERZ MIASTO:</b>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(keyboard)
@@ -1241,6 +1241,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
