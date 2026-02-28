@@ -450,18 +450,33 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
     city = city_map.get(ad_data.get("city"))
     options_raw = ad_data.get("options", [])
 
+    shop_link = ad_data.get("shop_link")
+    legit_link = ad_data.get("legit_link")
+
+    vip_links_block = ""
+    links = []
+    if shop_link:
+        links.append(f'<a href="{shop_link}">[FOTO]</a>')
+    if legit_link:
+        links.append(f'<a href="{legit_link}">LEGIT CHECK</a>')
+    if links:
+        vip_links_block = "\n\n" + " | ".join(links)
+
     content = "\n".join(
         f"{get_product_emoji(p)} {smart_mask_caps(p)}"
         for p in ad_data.get("products", [])
     )
 
-    caption = premium_template(
-        "WTS",
-        f"@{username}",
-        content,
-        get_vendor(username),
-        city,
-        [option_map[o] for o in options_raw if o in option_map]
+    caption = (
+        premium_template(
+            "WTS",
+            f"@{username}",
+            content,
+            get_vendor(username),
+            city,
+            [option_map[o] for o in options_raw if o in option_map]
+        )
+        + vip_links_block
     )
 
     reply_markup = InlineKeyboardMarkup([
@@ -470,12 +485,13 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_photo(
         chat_id=GROUP_ID,
-        message_thread_id=VIP_TOPIC,  # 🔥 TERAZ ID 3
+        message_thread_id=VIP_TOPIC,
         photo=LOGO_URL,
         caption=caption,
         parse_mode="HTML",
         reply_markup=reply_markup
     )
+    
     
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -735,6 +751,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user = query.from_user
 
+    # ================= VIP SKIP SHOP =================
+    if query.data == "VIP_SKIP_SHOP":
+        context.user_data.pop("awaiting_shop", None)
+        context.user_data["awaiting_legit"] = True
+
+        await query.edit_message_text(
+            "<b>🔗 PODAJ LINK DO LEGIT CHECK (GRUPA TELEGRAM)</b>\n\n"
+            "Np: https://t.me/twojagrupa\n"
+            "Możesz też kliknąć POMIŃ.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_LEGIT")]
+            ])
+        )
+        return
+
+    # ================= VIP SKIP LEGIT =================
+    if query.data == "VIP_SKIP_LEGIT":
+        context.user_data.pop("awaiting_legit", None)
+        await finalize_publish(update, context)
+        return
+
     # ================= VIP PANEL =================
     if query.data == "VIP_PANEL":
         await vip_panel(update, context)
@@ -773,17 +811,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Najpierw opublikuj ogłoszenie.", show_alert=True)
             return
 
-        # usuń stare joby
         old_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
         for job in old_jobs:
             job.schedule_removal()
 
-        # 🔥 1️⃣ NATYCHMIASTOWY POST
-        await context.bot.send_photo(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            photo=LOGO_URL,
-            caption=premium_template(
+        # 🔥 LINKI VIP
+        links = []
+        if ad_data.get("shop_link"):
+            links.append(f'<a href="{ad_data["shop_link"]}">[FOTO]</a>')
+        if ad_data.get("legit_link"):
+            links.append(f'<a href="{ad_data["legit_link"]}">LEGIT CHECK</a>')
+
+        vip_links_block = ""
+        if links:
+            vip_links_block = "\n\n" + " | ".join(links)
+
+        caption = (
+            premium_template(
                 "WTS",
                 f"@{user.username}",
                 "\n".join(
@@ -797,14 +841,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     for o in ad_data["options"]
                     if o in ["OPT_DOLOT", "OPT_UBER"]
                 ]
-            ),
+            )
+            + vip_links_block
+        )
+
+        await context.bot.send_photo(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            photo=LOGO_URL,
+            caption=caption,
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{user.username}")]
             ])
         )
 
-        # 🔥 2️⃣ POWTARZANIE CO 6H
         context.job_queue.run_repeating(
             vip_auto_post,
             interval=21600,
@@ -819,7 +870,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("AUTO START WŁĄCZONY 🚀")
         await vip_panel(update, context)
         return
-
     # ================= VIP AUTO STOP =================
     if query.data == "VIP_AUTO_STOP":
         jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
@@ -1086,6 +1136,49 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("<b>USUNIĘTO.</b>", parse_mode="HTML")
         context.user_data.clear()
         return
+            # ================= VIP SHOP LINK =================
+    if context.user_data.get("awaiting_shop"):
+        link = text.strip()
+
+        if not link.startswith("https://telegra.ph/"):
+            await update.message.reply_text(
+                "<b>❌ Link musi być z telegra.ph</b>",
+                parse_mode="HTML"
+            )
+            return
+
+        context.user_data["shop_link"] = link
+        context.user_data.pop("awaiting_shop")
+
+        context.user_data["awaiting_legit"] = True
+
+        await update.message.reply_text(
+            "<b>🔗 PODAJ LINK DO LEGIT CHECK (GRUPA TELEGRAM)</b>\n\n"
+            "Np: https://t.me/twojagrupa\n"
+            "Możesz też kliknąć POMIŃ.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_LEGIT")]
+            ])
+        )
+        return
+
+    # ================= VIP LEGIT LINK =================
+    if context.user_data.get("awaiting_legit"):
+        link = text.strip()
+
+        if not link.startswith("https://t.me/"):
+            await update.message.reply_text(
+                "<b>❌ Link musi być do grupy Telegram (https://t.me/...)</b>",
+                parse_mode="HTML"
+            )
+            return
+
+        context.user_data["legit_link"] = link
+        context.user_data.pop("awaiting_legit")
+
+        await finalize_publish(update, context)
+        return
 
     # ================= WTS PRODUCTS =================
     if "wts_total" in context.user_data:
@@ -1205,18 +1298,9 @@ async def ask_product_count(query):
     )
 
 
-# ================= PUBLISH =================
-async def publish(update, context):
+# ================= FINALIZE PUBLISH =================
+async def finalize_publish(update, context):
     user = update.effective_user
-
-    # 🔒 ZAWSZE wymagamy username
-    if not user.username:
-        await user.send_message(
-            "<b>❌ Musisz ustawić @username aby publikować ogłoszenia.</b>",
-            parse_mode="HTML"
-        )
-        context.user_data.clear()
-        return
 
     city_map = {
         "CITY_GDY": "#GDY",
@@ -1232,6 +1316,68 @@ async def publish(update, context):
     city = city_map.get(context.user_data.get("city"))
     options_raw = context.user_data.get("options", [])
 
+    shop_link = context.user_data.get("shop_link")
+    legit_link = context.user_data.get("legit_link")
+
+    vip_links_block = ""
+    if is_vip_vendor(user.username.lower()):
+        links = []
+        if shop_link:
+            links.append(f'<a href="{shop_link}">[FOTO]</a>')
+        if legit_link:
+            links.append(f'<a href="{legit_link}">LEGIT CHECK</a>')
+        if links:
+            vip_links_block = "\n\n" + " | ".join(links)
+
+    content = "\n".join(
+        f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+        for p in context.user_data.get("wts_products", [])
+    )
+
+    caption = (
+        premium_template(
+            "WTS",
+            f"@{user.username}",
+            content,
+            get_vendor(user.username.lower()),
+            city,
+            [option_map[o] for o in options_raw if o in option_map]
+        )
+        + vip_links_block
+    )
+
+    reply_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{user.username}")]
+    ])
+
+    msg = await context.bot.send_photo(
+        chat_id=GROUP_ID,
+        message_thread_id=WTS_TOPIC,
+        photo=LOGO_URL,
+        caption=caption,
+        parse_mode="HTML",
+        reply_markup=reply_markup
+    )
+
+    # zapis do AUTO
+    last_ads[user.id] = {
+        "products": list(context.user_data.get("wts_products", [])),
+        "city": context.user_data.get("city"),
+        "options": list(context.user_data.get("options", [])),
+        "shop_link": shop_link,
+        "legit_link": legit_link
+    }
+
+    set_last_post(user.id)
+    increment_posts(user.username.lower())
+
+    context.user_data.clear()
+
+    await user.send_message(
+        "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
+        parse_mode="HTML"
+    )
+
     # ================= WTS =================
     if "wts_products" in context.user_data and context.user_data.get("wts_products"):
 
@@ -1246,83 +1392,33 @@ async def publish(update, context):
         set_last_post(user.id)
         increment_posts(user.username.lower())
 
-        caption = premium_template(
-            title,
-            f"@{user.username}",
-            content,
-            get_vendor(user.username.lower()),
-            city,
-            [option_map[o] for o in options_raw if o in option_map]
+        caption = (
+            premium_template(
+                title,
+                f"@{user.username}",
+                content,
+                get_vendor(user.username.lower()),
+                city,
+                [option_map[o] for o in options_raw if o in option_map]
+            )
+            + vip_links_block
         )
 
-        # ✅ PRZYCISK KONTAKT Z VENDOREM POD OGŁOSZENIEM WTS
         reply_markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{user.username}")]
         ])
 
-        # ✅ ZAPISZ OSTATNIE OGŁOSZENIE (ŻEBY POJAWIŁ SIĘ PRZYCISK "WYŚLIJ PONOWNIE" W PANELU WTS)
         last_ads[user.id] = {
             "products": list(context.user_data.get("wts_products", [])),
             "city": context.user_data.get("city"),
-            "options": list(context.user_data.get("options", []))
+            "options": list(context.user_data.get("options", [])),
+            "shop_link": shop_link,
+            "legit_link": legit_link
         }
 
-    # ================= WTB / WTT =================
     else:
-        # Guard: jeśli to nie WTS, musimy mieć type + content
-        if "type" not in context.user_data or "content" not in context.user_data:
-            await user.send_message(
-                "<b>❌ Brak danych do publikacji. Zrób /start i przejdź proces od nowa.</b>",
-                parse_mode="HTML"
-            )
-            context.user_data.clear()
-            return
+        return
 
-        raw_content = context.user_data.get("content")
-        if not raw_content:
-            await user.send_message(
-                "<b>❌ Pusta treść ogłoszenia. Zrób /start i spróbuj ponownie.</b>",
-                parse_mode="HTML"
-            )
-            context.user_data.clear()
-            return
-
-        content = smart_mask_caps(raw_content)
-        title = context.user_data["type"]
-
-        topic = WTB_TOPIC if title == "WTB" else WTT_TOPIC
-
-        hashtags = []
-
-        if city:
-            hashtags.append(city)
-
-        if title == "WTB":
-            hashtags.append("#KUPIE")
-        else:
-            hashtags.append("#WYMIANA")
-
-        for o in options_raw:
-            if o in option_map:
-                hashtags.append(option_map[o])
-
-        hashtag_line = " ".join(hashtags)
-
-        caption = (
-            f"<b>🚨🚨 {title} ALERT 🚨🚨</b>\n\n"
-            f"<b>👤 @{user.username}</b>\n\n"
-            f"<b>━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-            f"<b>🔥 {content} 🔥</b>\n\n"
-            f"<b>━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-            f"{hashtag_line}\n\n"
-            f"<b>⚡ MARKETPLACE</b>"
-        )
-
-        reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{user.username}")]
-        ])
-
-    # ================= WYSYŁKA =================
     msg = await context.bot.send_photo(
         chat_id=GROUP_ID,
         message_thread_id=topic,
@@ -1342,7 +1438,6 @@ async def publish(update, context):
 
     context.user_data.clear()
 
-    # ✅ POTWIERDZENIE
     await user.send_message(
         "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
         parse_mode="HTML"
@@ -1377,6 +1472,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
