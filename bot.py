@@ -1135,7 +1135,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ================= OPT DONE =================
     if query.data == "OPT_DONE":
 
-        if user.username and is_vip_vendor(user.username.lower()):
+        post_type = context.user_data.get("type")
+
+        # 🔥 LINKI TYLKO DLA WTS
+        if (
+            "wts_products" in context.user_data
+            and user.username
+            and is_vip_vendor(user.username.lower())
+        ):
             context.user_data["awaiting_shop"] = True
 
             await query.edit_message_text(
@@ -1404,30 +1411,32 @@ async def finalize_publish(update, context):
     # ================= WTB =================
     elif post_type == "WTB":
 
-        content = context.user_data.get("content")
+        raw_content = context.user_data.get("content")
+        masked_content = smart_mask_caps(raw_content)
 
         caption = (
             "🛒 <b>WTB MARKET</b>\n\n"
             f"👤 <b>@{username}</b>\n"
             f"📍 <b>{city} | #3CITY</b>\n\n"
             "<code>───────────────</code>\n"
-            f"<b>{content}</b>\n"
+            f"<b>{masked_content}</b>\n"
             "<code>───────────────</code>"
         )
 
         topic = WTB_TOPIC
-
+        
     # ================= WTT =================
     elif post_type == "WTT":
 
-        content = context.user_data.get("content")
+        raw_content = context.user_data.get("content")
+        masked_content = smart_mask_caps(raw_content)
 
         caption = (
             "🔁 <b>WTT MARKET</b>\n\n"
             f"👤 <b>@{username}</b>\n"
             f"📍 <b>{city} | #3CITY</b>\n\n"
             "<code>───────────────</code>\n"
-            f"<b>{content}</b>\n"
+            f"<b>{masked_content}</b>\n"
             "<code>───────────────</code>"
         )
 
@@ -1508,6 +1517,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
