@@ -464,6 +464,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ================= ADMIN COMMANDS =================
+# ================= ADMIN COMMANDS =================
+
 async def cmd_addvendor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -559,7 +561,6 @@ async def cmd_listvendors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = ""
 
     for v in vendors:
-        # v = (username, added_at, posts, vip)
         vip_badge = " 💎VIP" if int(v[3]) == 1 else ""
         text += f"<b>@{v[0]}</b>{vip_badge} | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
 
@@ -640,34 +641,11 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-    if not context.args:
-        await update.message.reply_text(
-            "<b>UŻYJ:</b> /unsetvip @username",
-            parse_mode="HTML"
-        )
-        return
 
-    username = context.args[0].replace("@", "").strip().lower()
-
-    if not re.fullmatch(r"[a-zA-Z0-9_]{5,32}", username):
-        await update.message.reply_text("<b>❌ ZŁY USERNAME.</b>", parse_mode="HTML")
-        return
-
-    if not get_vendor(username):
-        await update.message.reply_text("<b>❌ Vendor nie istnieje.</b>", parse_mode="HTML")
-        return
-
-    set_vip_vendor(username, False)
-
-    await update.message.reply_text(
-        f"<b>❌ VIP USUNIĘTY:</b> @{username}",
-        parse_mode="HTML"
-    )
-   async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
 
-    # Guard: tylko VIP vendor
     if not user.username or not is_vip_vendor(user.username.lower()):
         await query.edit_message_text("<b>BRAK DOSTĘPU.</b>", parse_mode="HTML")
         return
@@ -689,7 +667,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
 # ================= CALLBACK HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1264,6 +1241,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
