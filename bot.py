@@ -1364,41 +1364,80 @@ async def finalize_publish(update, context):
     options_raw = context.user_data.get("options", [])
     options = [option_map[o] for o in options_raw if o in option_map]
 
-    shop_link = context.user_data.get("shop_link")
-    legit_link = context.user_data.get("legit_link")
-
-    content = "\n".join(
-        f"{get_product_emoji(p)} {smart_mask_caps(p)}"
-        for p in context.user_data.get("wts_products", [])
-    )
-
     vendor_data = get_vendor(username)
 
-    # 🔥 WYBÓR LAYOUTU
-    if is_vip_vendor(username) and shop_link is not None:
-        caption = vip_template(
-            username,
-            content,
-            vendor_data,
-            city,
-            options,
-            shop_link,
-            legit_link
+    post_type = context.user_data.get("type")
+
+    # ================= WTS =================
+    if "wts_products" in context.user_data:
+
+        shop_link = context.user_data.get("shop_link")
+        legit_link = context.user_data.get("legit_link")
+
+        content = "\n".join(
+            f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+            for p in context.user_data.get("wts_products", [])
         )
-        topic = VIP_TOPIC
+
+        if is_vip_vendor(username) and shop_link is not None:
+            caption = vip_template(
+                username,
+                content,
+                vendor_data,
+                city,
+                options,
+                shop_link,
+                legit_link
+            )
+            topic = VIP_TOPIC
+        else:
+            caption = vendor_template(
+                "WTS",
+                f"@{username}",
+                content,
+                vendor_data,
+                city,
+                options
+            )
+            topic = WTS_TOPIC
+
+    # ================= WTB =================
+    elif post_type == "WTB":
+
+        content = context.user_data.get("content")
+
+        caption = (
+            "🛒 <b>WTB MARKET</b>\n\n"
+            f"👤 <b>@{username}</b>\n"
+            f"📍 <b>{city} | #3CITY</b>\n\n"
+            "<code>───────────────</code>\n"
+            f"<b>{content}</b>\n"
+            "<code>───────────────</code>"
+        )
+
+        topic = WTB_TOPIC
+
+    # ================= WTT =================
+    elif post_type == "WTT":
+
+        content = context.user_data.get("content")
+
+        caption = (
+            "🔁 <b>WTT MARKET</b>\n\n"
+            f"👤 <b>@{username}</b>\n"
+            f"📍 <b>{city} | #3CITY</b>\n\n"
+            "<code>───────────────</code>\n"
+            f"<b>{content}</b>\n"
+            "<code>───────────────</code>"
+        )
+
+        topic = WTT_TOPIC
+
     else:
-        caption = vendor_template(
-            "WTS",
-            f"@{username}",
-            content,
-            vendor_data,
-            city,
-            options
-        )
-        topic = WTS_TOPIC
+        return
 
     reply_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
+        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
     ])
 
     await context.bot.send_photo(
@@ -1410,20 +1449,21 @@ async def finalize_publish(update, context):
         reply_markup=reply_markup
     )
 
-    last_ads[user.id] = {
-        "products": list(context.user_data.get("wts_products", [])),
-        "city": context.user_data.get("city"),
-        "options": list(context.user_data.get("options", [])),
-        "shop_link": shop_link,
-        "legit_link": legit_link
-    }
+    # zapis FAST POST tylko dla WTS
+    if "wts_products" in context.user_data:
+        last_ads[user.id] = {
+            "products": list(context.user_data.get("wts_products", [])),
+            "city": context.user_data.get("city"),
+            "options": list(context.user_data.get("options", [])),
+            "shop_link": context.user_data.get("shop_link"),
+            "legit_link": context.user_data.get("legit_link")
+        }
 
     set_last_post(user.id)
     increment_posts(username)
 
     context.user_data.clear()
 
-    # ✅ POWRÓT DO MENU
     keyboard = [[
         InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
         InlineKeyboardButton("💼 WTS", callback_data="WTS"),
@@ -1468,6 +1508,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
