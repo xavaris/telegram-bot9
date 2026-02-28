@@ -422,6 +422,59 @@ async def auto_messages(context: ContextTypes.DEFAULT_TYPE):
         reply_markup=keyboard_wtt
     )
 
+
+# ================= VIP AUTO POST SYSTEM =================
+async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
+    job = context.job
+    data = job.data
+
+    username = data.get("username")
+    ad_data = data.get("ad_data")
+
+    if not username or not ad_data:
+        return
+
+    city_map = {
+        "CITY_GDY": "#GDY",
+        "CITY_GDA": "#GDA",
+        "CITY_SOP": "#SOP"
+    }
+
+    option_map = {
+        "OPT_DOLOT": "#DOLOT",
+        "OPT_UBER": "#UBERPAKA"
+    }
+
+    city = city_map.get(ad_data.get("city"))
+    options_raw = ad_data.get("options", [])
+
+    content = "\n".join(
+        f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+        for p in ad_data.get("products", [])
+    )
+
+    caption = premium_template(
+        "WTS",
+        f"@{username}",
+        content,
+        get_vendor(username),
+        city,
+        [option_map[o] for o in options_raw if o in option_map]
+    )
+
+    reply_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
+    ])
+
+    await context.bot.send_photo(
+        chat_id=GROUP_ID,
+        message_thread_id=WTS_TOPIC,
+        photo=LOGO_URL,
+        caption=caption,
+        parse_mode="HTML",
+        reply_markup=reply_markup
+    )
+    
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -654,7 +707,12 @@ async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = vendor[4] if vendor else 0
     since = vendor[1] if vendor else "-"
 
+    active_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
+    auto_status = "🟢 AKTYWNY" if active_jobs else "🔴 WYŁĄCZONY"
+
     keyboard = [
+        [InlineKeyboardButton("🚀 AUTO START (6H)", callback_data="VIP_AUTO_START")],
+        [InlineKeyboardButton("🛑 AUTO STOP", callback_data="VIP_AUTO_STOP")],
         [InlineKeyboardButton("📊 MOJE STATY", callback_data="VIP_STATS")],
         [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_BACK_START")]
     ]
@@ -663,10 +721,12 @@ async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>💎 VIP VENDOR PANEL</b>\n\n"
         f"<b>👤 @{user.username}</b>\n"
         f"<b>🗓 OD:</b> {since}\n"
-        f"<b>📊 OGŁOSZEŃ:</b> {posts}",
+        f"<b>📊 OGŁOSZEŃ:</b> {posts}\n\n"
+        f"<b>AUTO POST:</b> {auto_status}",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    
 # ================= CALLBACK HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -697,6 +757,50 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_PANEL")]
             ])
         )
+        return
+
+    if query.data == "VIP_AUTO_START":
+        if not user.username or not is_vip_vendor(user.username.lower()):
+            await query.answer("Brak dostępu.", show_alert=True)
+            return
+
+        ad_data = last_ads.get(user.id)
+
+        if not ad_data:
+            await query.answer("Najpierw opublikuj ogłoszenie.", show_alert=True)
+            return
+
+        old_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
+        for job in old_jobs:
+            job.schedule_removal()
+
+        context.job_queue.run_repeating(
+            vip_auto_post,
+            interval=21600,
+            first=0,
+            name=f"vip_auto_{user.id}",
+            data={
+                "username": user.username.lower(),
+                "ad_data": ad_data
+            }
+        )
+
+        await query.answer("AUTO START WŁĄCZONY 🚀")
+        await vip_panel(update, context)
+        return
+
+    if query.data == "VIP_AUTO_STOP":
+        jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
+
+        if not jobs:
+            await query.answer("AUTO już wyłączony.", show_alert=True)
+            return
+
+        for job in jobs:
+            job.schedule_removal()
+
+        await query.answer("AUTO STOP 🛑")
+        await vip_panel(update, context)
         return
 
     if query.data == "VIP_BACK_START":
@@ -1241,6 +1345,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
