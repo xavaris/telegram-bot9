@@ -18,11 +18,13 @@ from telegram.ext import (
 )
 
 # ================= ENV =================
+# ================= ENV =================
 TOKEN = os.getenv("KEY")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 WTB_TOPIC = int(os.getenv("WTB"))
 WTS_TOPIC = int(os.getenv("WTS"))
 WTT_TOPIC = int(os.getenv("WTT"))
+VIP_TOPIC = 3  # 🔥 VIP VENDOR TOPIC ID
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 LOGO_URL = os.getenv("LOGO_URL")
 BOT_USERNAME = os.getenv("BOT_USERNAME")
@@ -468,7 +470,7 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_photo(
         chat_id=GROUP_ID,
-        message_thread_id=WTS_TOPIC,
+        message_thread_id=VIP_TOPIC,  # 🔥 TERAZ ID 3
         photo=LOGO_URL,
         caption=caption,
         parse_mode="HTML",
@@ -759,6 +761,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ================= VIP AUTO START =================
     if query.data == "VIP_AUTO_START":
         if not user.username or not is_vip_vendor(user.username.lower()):
             await query.answer("Brak dostępu.", show_alert=True)
@@ -770,14 +773,42 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Najpierw opublikuj ogłoszenie.", show_alert=True)
             return
 
+        # usuń stare joby
         old_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
         for job in old_jobs:
             job.schedule_removal()
 
+        # 🔥 1️⃣ NATYCHMIASTOWY POST
+        await context.bot.send_photo(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            photo=LOGO_URL,
+            caption=premium_template(
+                "WTS",
+                f"@{user.username}",
+                "\n".join(
+                    f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+                    for p in ad_data["products"]
+                ),
+                get_vendor(user.username.lower()),
+                {"CITY_GDY": "#GDY", "CITY_GDA": "#GDA", "CITY_SOP": "#SOP"}.get(ad_data["city"]),
+                [
+                    {"OPT_DOLOT": "#DOLOT", "OPT_UBER": "#UBERPAKA"}[o]
+                    for o in ad_data["options"]
+                    if o in ["OPT_DOLOT", "OPT_UBER"]
+                ]
+            ),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{user.username}")]
+            ])
+        )
+
+        # 🔥 2️⃣ POWTARZANIE CO 6H
         context.job_queue.run_repeating(
             vip_auto_post,
             interval=21600,
-            first=0,
+            first=21600,
             name=f"vip_auto_{user.id}",
             data={
                 "username": user.username.lower(),
@@ -789,6 +820,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await vip_panel(update, context)
         return
 
+    # ================= VIP AUTO STOP =================
     if query.data == "VIP_AUTO_STOP":
         jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
 
@@ -803,6 +835,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await vip_panel(update, context)
         return
 
+    # ================= VIP BACK =================
     if query.data == "VIP_BACK_START":
         keyboard = [[
             InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
@@ -822,7 +855,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
-
     # ================= ADMIN PANEL =================
     if query.data == "ADMIN" and user.id == ADMIN_ID:
         await admin_panel(update, context)
@@ -1345,6 +1377,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
