@@ -27,6 +27,7 @@ WTT_TOPIC = int(os.getenv("WTT"))
 VIP_TOPIC = 3  # 🔥 VIP VENDOR TOPIC ID
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 LOGO_URL = os.getenv("LOGO_URL")
+VIP_LOGO_URL = os.getenv("VIP_LOGO_URL")
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 
 # ================= FAST POST MEMORY (DODANE) =================
@@ -362,33 +363,39 @@ def vip_template(username, content, vendor_data, city, options, shop_link=None, 
     if options:
         option_text = " | " + " | ".join(options)
 
-    links = []
-    if shop_link:
-        links.append(f'📸 <a href="{shop_link}">[FOTO]</a>')
-    if legit_link:
-        links.append(f'🛡 <a href="{legit_link}">LEGIT CHECK</a>')
+    # ===== GOLD LINKS SECTION =====
+    links_block = ""
+    if shop_link or legit_link:
 
-    vip_links_block = ""
-    if links:
-        vip_links_block = "\n\n" + " | ".join(links)
+        links_block = "\n"
+        links_block += "✨ <b>PRIVATE ACCESS</b>\n"
+
+        if shop_link:
+            links_block += f'📸 <b><a href="{shop_link}">OFICJALNA GALERIA</a></b>\n'
+
+        if legit_link:
+            links_block += f'🛡 <b><a href="{legit_link}">GRUPA WERYFIKACYJNA</a></b>\n'
 
     return (
-        "╔══════════════════════╗\n"
-        "💎💎💎 <b>SUPER VIP MARKET</b> 💎💎💎\n"
-        "╚══════════════════════╝\n\n"
-        "👑 <b>ELITE VERIFIED VENDOR</b>\n"
-        f"🗓 <b>AKTYWNY OD:</b> {vendor_data[1]}\n"
-        f"📊 <b>ILOŚĆ OGŁOSZEŃ:</b> {vendor_data[4]}\n\n"
-        f"👤 <b>@{username}</b>\n"
-        f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-        "<code>════════════════════</code>\n"
-        f"<b>{content}</b>\n"
-        "<code>════════════════════</code>\n\n"
-        "🔥 <b>TOP TIER SOURCE</b>\n"
-        "⚡ <b>PRIORITY CONTACT</b>"
-        f"{vip_links_block}"
-    )
+        "✨👑 <b>GOLD VENDOR COLLECTION</b> 👑✨\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
 
+        "🏛 <b>EXCLUSIVE VERIFIED SELLER</b>\n"
+        f"🗓 <b>Member since:</b> {vendor_data[1]}\n"
+        f"📊 <b>Published offers:</b> {vendor_data[4]}\n\n"
+
+        f"👤 <b>@{username}</b>\n"
+        f"📍 <b>{city}{option_text} | #3CITY</b>\n"
+        f"{links_block}\n"
+
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"{content}\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+
+        "💫 <b>Premium Quality</b>\n"
+        "⚜️ <b>Discretion • Reputation • Prestige</b>"
+    )
+    
 # ================= AUTO SYSTEM =================
 async def auto_messages(context: ContextTypes.DEFAULT_TYPE):
 
@@ -501,14 +508,24 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
-    await context.bot.send_photo(
-        chat_id=GROUP_ID,
-        message_thread_id=VIP_TOPIC,
-        photo=LOGO_URL,
-        caption=caption,
-        parse_mode="HTML",
-        reply_markup=reply_markup
-    )
+     if VIP_LOGO_URL:
+        await context.bot.send_animation(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            animation=VIP_LOGO_URL,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+    else:
+        await context.bot.send_photo(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            photo=LOGO_URL,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
     
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1445,9 +1462,23 @@ async def finalize_publish(update, context):
     else:
         return
 
-    reply_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-    ])
+reply_markup = InlineKeyboardMarkup([
+    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+])
+
+# ===== WYBÓR LOGO (VIP = ANIMACJA) =====
+if topic == VIP_TOPIC and VIP_LOGO_URL:
+
+    await context.bot.send_animation(
+        chat_id=GROUP_ID,
+        message_thread_id=topic,
+        animation=VIP_LOGO_URL,
+        caption=caption,
+        parse_mode="HTML",
+        reply_markup=reply_markup
+    )
+
+else:
 
     await context.bot.send_photo(
         chat_id=GROUP_ID,
@@ -1517,6 +1548,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
