@@ -328,37 +328,65 @@ def clear_all_cooldowns():
     conn.commit()
     
     # ================= PREMIUM TEMPLATE =================
-def premium_template(title, username, content, vendor_data, city, options):
+# ================= VENDOR TEMPLATE =================
+def vendor_template(title, username, content, vendor_data, city, options):
 
     badge = ""
     if vendor_data:
         badge = (
-            "<b>👑 VERIFIED VENDOR</b>\n"
-            f"<b>🗓 OD:</b> {vendor_data[1]}\n"
-            f"<b>📊 OGŁOSZEŃ:</b> {vendor_data[4]}\n\n"
+            "🏷 <b>VERIFIED VENDOR</b>\n"
+            f"🗓 <b>OD:</b> {vendor_data[1]}\n"
+            f"📊 <b>OGŁOSZEŃ:</b> {vendor_data[4]}\n\n"
         )
 
     option_text = ""
     if options:
         option_text = " | " + " | ".join(options)
 
-    profile = f"<b>👤 {username}</b>\n<b>📍 {city}{option_text} | #3CITY</b>"
-
-    hashtag = ""
-    if title == "WTB":
-        hashtag = "\n<b>#WTB</b>"
-    if title == "WTT":
-        hashtag = "\n<b>#WTT</b>"
-
     return (
-        f"<b>       💎 {title} MARKET 💎</b>\n\n"
+        f"💎 <b>{title} MARKET</b> 💎\n\n"
         f"{badge}"
-        f"{profile}\n\n"
+        f"👤 <b>{username}</b>\n"
+        f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
         "<code>───────────────</code>\n"
         f"<b>{content}</b>\n"
-        "<code>───────────────</code>"
-        f"{hashtag}\n\n"
-        "<b>⚡ OFFICIAL MARKETPLACE</b>"
+        "<code>───────────────</code>\n\n"
+        "⚡ <b>OFFICIAL MARKETPLACE</b>"
+    )
+
+
+# ================= SUPER VIP TEMPLATE =================
+def vip_template(username, content, vendor_data, city, options, shop_link=None, legit_link=None):
+
+    option_text = ""
+    if options:
+        option_text = " | " + " | ".join(options)
+
+    links = []
+    if shop_link:
+        links.append(f'📸 <a href="{shop_link}">[FOTO]</a>')
+    if legit_link:
+        links.append(f'🛡 <a href="{legit_link}">LEGIT CHECK</a>')
+
+    vip_links_block = ""
+    if links:
+        vip_links_block = "\n\n" + " | ".join(links)
+
+    return (
+        "╔══════════════════════╗\n"
+        "💎💎💎 <b>SUPER VIP MARKET</b> 💎💎💎\n"
+        "╚══════════════════════╝\n\n"
+        "👑 <b>ELITE VERIFIED VENDOR</b>\n"
+        f"🗓 <b>AKTYWNY OD:</b> {vendor_data[1]}\n"
+        f"📊 <b>ILOŚĆ OGŁOSZEŃ:</b> {vendor_data[4]}\n\n"
+        f"👤 <b>@{username}</b>\n"
+        f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
+        "<code>════════════════════</code>\n"
+        f"<b>{content}</b>\n"
+        "<code>════════════════════</code>\n\n"
+        "🔥 <b>TOP TIER SOURCE</b>\n"
+        "⚡ <b>PRIORITY CONTACT</b>"
+        f"{vip_links_block}"
     )
 
 # ================= AUTO SYSTEM =================
@@ -448,35 +476,25 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
     }
 
     city = city_map.get(ad_data.get("city"))
-    options_raw = ad_data.get("options", [])
-
-    shop_link = ad_data.get("shop_link")
-    legit_link = ad_data.get("legit_link")
-
-    vip_links_block = ""
-    links = []
-    if shop_link:
-        links.append(f'<a href="{shop_link}">[FOTO]</a>')
-    if legit_link:
-        links.append(f'<a href="{legit_link}">LEGIT CHECK</a>')
-    if links:
-        vip_links_block = "\n\n" + " | ".join(links)
+    options = [
+        option_map[o]
+        for o in ad_data.get("options", [])
+        if o in option_map
+    ]
 
     content = "\n".join(
         f"{get_product_emoji(p)} {smart_mask_caps(p)}"
         for p in ad_data.get("products", [])
     )
 
-    caption = (
-        premium_template(
-            "WTS",
-            f"@{username}",
-            content,
-            get_vendor(username),
-            city,
-            [option_map[o] for o in options_raw if o in option_map]
-        )
-        + vip_links_block
+    caption = vip_template(
+        username=username,
+        content=content,
+        vendor_data=get_vendor(username),
+        city=city,
+        options=options,
+        shop_link=ad_data.get("shop_link"),
+        legit_link=ad_data.get("legit_link")
     )
 
     reply_markup = InlineKeyboardMarkup([
@@ -491,7 +509,6 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_markup=reply_markup
     )
-    
     
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -752,6 +769,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
 
         
+    # ================= VIP SKIP SHOP =================
+    if query.data == "VIP_SKIP_SHOP":
+        context.user_data.pop("awaiting_shop", None)
+        context.user_data["awaiting_legit"] = True
+
+        await query.edit_message_text(
+            "<b>🔗 PODAJ LINK DO LEGIT CHECK (GRUPA TELEGRAM)</b>\n\n"
+            "Np: https://t.me/twojagrupa\n"
+            "Możesz też kliknąć POMIŃ.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_LEGIT")]
+            ])
+        )
+        return
+
+
     # ================= VIP SKIP LEGIT =================
     if query.data == "VIP_SKIP_LEGIT":
         context.user_data.pop("awaiting_legit", None)
@@ -800,34 +834,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for job in old_jobs:
             job.schedule_removal()
 
-        # 🔥 LINKI VIP
-        links = []
-        if ad_data.get("shop_link"):
-            links.append(f'<a href="{ad_data["shop_link"]}">[FOTO]</a>')
-        if ad_data.get("legit_link"):
-            links.append(f'<a href="{ad_data["legit_link"]}">LEGIT CHECK</a>')
+        username = user.username.lower()
 
-        vip_links_block = ""
-        if links:
-            vip_links_block = "\n\n" + " | ".join(links)
+        city_map = {
+            "CITY_GDY": "#GDY",
+            "CITY_GDA": "#GDA",
+            "CITY_SOP": "#SOP"
+        }
 
-        caption = (
-            premium_template(
-                "WTS",
-                f"@{user.username}",
-                "\n".join(
-                    f"{get_product_emoji(p)} {smart_mask_caps(p)}"
-                    for p in ad_data["products"]
-                ),
-                get_vendor(user.username.lower()),
-                {"CITY_GDY": "#GDY", "CITY_GDA": "#GDA", "CITY_SOP": "#SOP"}.get(ad_data["city"]),
-                [
-                    {"OPT_DOLOT": "#DOLOT", "OPT_UBER": "#UBERPAKA"}[o]
-                    for o in ad_data["options"]
-                    if o in ["OPT_DOLOT", "OPT_UBER"]
-                ]
-            )
-            + vip_links_block
+        option_map = {
+            "OPT_DOLOT": "#DOLOT",
+            "OPT_UBER": "#UBERPAKA"
+        }
+
+        city = city_map.get(ad_data.get("city"))
+        options = [
+            option_map[o]
+            for o in ad_data.get("options", [])
+            if o in option_map
+        ]
+
+        content = "\n".join(
+            f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+            for p in ad_data["products"]
+        )
+
+        caption = vip_template(
+            username=username,
+            content=content,
+            vendor_data=get_vendor(username),
+            city=city,
+            options=options,
+            shop_link=ad_data.get("shop_link"),
+            legit_link=ad_data.get("legit_link")
         )
 
         await context.bot.send_photo(
@@ -837,7 +876,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=caption,
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{user.username}")]
+                [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
             ])
         )
 
@@ -847,7 +886,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             first=21600,
             name=f"vip_auto_{user.id}",
             data={
-                "username": user.username.lower(),
+                "username": username,
                 "ad_data": ad_data
             }
         )
@@ -855,6 +894,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("AUTO START WŁĄCZONY 🚀")
         await vip_panel(update, context)
         return
+    
     # ================= VIP AUTO STOP =================
     if query.data == "VIP_AUTO_STOP":
         jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
@@ -926,7 +966,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["city"] = data["city"]
         context.user_data["options"] = data["options"]
 
-        await publish(update, context)
+        await finalize_publish(update, context)
         return
 
     # ================= NOWE WTS =================
@@ -1301,6 +1341,7 @@ async def ask_product_count(query):
 # ================= FINALIZE PUBLISH =================
 async def finalize_publish(update, context):
     user = update.effective_user
+    username = user.username.lower()
 
     city_map = {
         "CITY_GDY": "#GDY",
@@ -1315,44 +1356,48 @@ async def finalize_publish(update, context):
 
     city = city_map.get(context.user_data.get("city"))
     options_raw = context.user_data.get("options", [])
+    options = [option_map[o] for o in options_raw if o in option_map]
 
     shop_link = context.user_data.get("shop_link")
     legit_link = context.user_data.get("legit_link")
-
-    vip_links_block = ""
-    if user.username and is_vip_vendor(user.username.lower()):
-        links = []
-        if shop_link:
-            links.append(f'<a href="{shop_link}">[FOTO]</a>')
-        if legit_link:
-            links.append(f'<a href="{legit_link}">LEGIT CHECK</a>')
-        if links:
-            vip_links_block = "\n\n" + " | ".join(links)
 
     content = "\n".join(
         f"{get_product_emoji(p)} {smart_mask_caps(p)}"
         for p in context.user_data.get("wts_products", [])
     )
 
-    caption = (
-        premium_template(
-            "WTS",
-            f"@{user.username}",
+    vendor_data = get_vendor(username)
+
+    # 🔥 WYBÓR LAYOUTU
+    if is_vip_vendor(username):
+        caption = vip_template(
+            username,
             content,
-            get_vendor(user.username.lower()),
+            vendor_data,
             city,
-            [option_map[o] for o in options_raw if o in option_map]
+            options,
+            shop_link,
+            legit_link
         )
-        + vip_links_block
-    )
+        topic = VIP_TOPIC
+    else:
+        caption = vendor_template(
+            "WTS",
+            f"@{username}",
+            content,
+            vendor_data,
+            city,
+            options
+        )
+        topic = WTS_TOPIC
 
     reply_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{user.username}")]
+        [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
     await context.bot.send_photo(
         chat_id=GROUP_ID,
-        message_thread_id=WTS_TOPIC,
+        message_thread_id=topic,
         photo=LOGO_URL,
         caption=caption,
         parse_mode="HTML",
@@ -1368,7 +1413,7 @@ async def finalize_publish(update, context):
     }
 
     set_last_post(user.id)
-    increment_posts(user.username.lower())
+    increment_posts(username)
 
     context.user_data.clear()
 
@@ -1406,6 +1451,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
