@@ -1482,32 +1482,32 @@ async def finalize_publish(update, context):
     else:
         return
 
-reply_markup = InlineKeyboardMarkup([
-    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-])
+    reply_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+    ])
 
-# ===== WYBÓR LOGO (VIP = ANIMACJA) =====
-if topic == VIP_TOPIC and VIP_LOGO_URL:
+    # ===== WYBÓR LOGO (VIP = ANIMACJA) =====
+    if topic == VIP_TOPIC and VIP_LOGO_URL:
 
-    await context.bot.send_animation(
-        chat_id=GROUP_ID,
-        message_thread_id=topic,
-        animation=VIP_LOGO_URL,
-        caption=caption,
-        parse_mode="HTML",
-        reply_markup=reply_markup
-    )
+        await context.bot.send_animation(
+            chat_id=GROUP_ID,
+            message_thread_id=topic,
+            animation=VIP_LOGO_URL,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
 
-else:
+    else:
 
-    await context.bot.send_photo(
-        chat_id=GROUP_ID,
-        message_thread_id=topic,
-        photo=LOGO_URL,
-        caption=caption,
-        parse_mode="HTML",
-        reply_markup=reply_markup
-    )
+        await context.bot.send_photo(
+            chat_id=GROUP_ID,
+            message_thread_id=topic,
+            photo=LOGO_URL,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
 
     # zapis FAST POST tylko dla WTS
     if "wts_products" in context.user_data:
@@ -1568,6 +1568,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
