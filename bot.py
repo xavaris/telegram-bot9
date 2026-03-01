@@ -527,7 +527,8 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
-     if VIP_LOGO_URL:
+    # ===== WYBÓR LOGO =====
+    if VIP_LOGO_URL:
         await context.bot.send_animation(
             chat_id=GROUP_ID,
             message_thread_id=VIP_TOPIC,
@@ -1567,6 +1568,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
