@@ -882,7 +882,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         option_map = {
             "OPT_DOLOT": "#DOLOT",
-            "OPT_UBER": "#UBERPAKA"
+            "OPT_UBER": "#UBERPAKA",
+            "OPT_H2H": "#H2H"
         }
 
         city = city_map.get(ad_data.get("city"))
@@ -1590,6 +1591,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
