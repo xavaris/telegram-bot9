@@ -1403,7 +1403,7 @@ async def finalize_publish(update, context):
 
     option_map = {
         "OPT_DOLOT": "#DOLOT",
-        "OPT_UBER": "#UBERPAKA"
+        "OPT_UBER": "#UBERPAKA",
         "OPT_H2H": "#H2H"
     }
 
@@ -1572,6 +1572,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
