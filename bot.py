@@ -123,12 +123,10 @@ def get_product_emoji(name: str) -> str:
             "klony", "clonozepan", "clony",
         ],
         
-
         "🇵🇱": [
             "feta", "polak", "krajówa", "ryba", "feciura"
         ],
 
-        
         "💜": [
             "pix", "pixy", "piksy", "piksi",
             "eksta", "exta", "extasy", "ecstasy",
@@ -1568,6 +1566,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
