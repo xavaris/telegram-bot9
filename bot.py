@@ -499,6 +499,7 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
     option_map = {
         "OPT_DOLOT": "#DOLOT",
         "OPT_UBER": "#UBERPAKA"
+        "OPT_H2H": "#H2H"
     }
 
     city = city_map.get(ad_data.get("city"))
@@ -1149,6 +1150,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("✈️ DOLOT", callback_data="OPT_DOLOT")],
             [InlineKeyboardButton("🚗 UBER PAKA", callback_data="OPT_UBER")],
+            [InlineKeyboardButton("🤝 H2H", callback_data="OPT_H2H")],
             [InlineKeyboardButton("❌ BRAK", callback_data="OPT_BRAK")],
             [InlineKeyboardButton("✅ PUBLIKUJ", callback_data="OPT_DONE")]
         ]
@@ -1160,7 +1162,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if query.data in ["OPT_DOLOT", "OPT_UBER"]:
+    if query.data in ["OPT_DOLOT", "OPT_UBER", "OPT_H2H"]:
         if query.data not in context.user_data.get("options", []):
             context.user_data.setdefault("options", []).append(query.data)
         return
@@ -1402,6 +1404,7 @@ async def finalize_publish(update, context):
     option_map = {
         "OPT_DOLOT": "#DOLOT",
         "OPT_UBER": "#UBERPAKA"
+        "OPT_H2H": "#H2H"
     }
 
     city = city_map.get(context.user_data.get("city"))
@@ -1509,8 +1512,9 @@ async def finalize_publish(update, context):
             reply_markup=reply_markup
         )
 
-    # zapis FAST POST tylko dla WTS
+    # zapis FAST POST + cooldown tylko dla WTS
     if "wts_products" in context.user_data:
+
         last_ads[user.id] = {
             "products": list(context.user_data.get("wts_products", [])),
             "city": context.user_data.get("city"),
@@ -1519,8 +1523,9 @@ async def finalize_publish(update, context):
             "legit_link": context.user_data.get("legit_link")
         }
 
-    set_last_post(user.id)
-    increment_posts(username)
+        # 🔥 COOLDOWN TYLKO DLA WTS
+        set_last_post(user.id)
+        increment_posts(username)
 
     context.user_data.clear()
 
@@ -1538,7 +1543,6 @@ async def finalize_publish(update, context):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    
 # ================= MAIN =================
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -1568,6 +1572,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
