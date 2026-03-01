@@ -1439,7 +1439,7 @@ async def finalize_publish(update, context):
             for p in context.user_data.get("wts_products", [])
         )
 
-        # 🔥 JEŚLI VIP → LECI DO TOP VENDOR
+        # 🔥 VIP MA GOLD LAYOUT ALE PUBLIKUJE W WTS
         if is_vip_vendor(username):
 
             caption = vip_template(
@@ -1452,7 +1452,7 @@ async def finalize_publish(update, context):
                 legit_link
             )
 
-            topic = VIP_TOPIC
+            topic = WTS_TOPIC  # 🔥 TUTAJ JEST ZMIANA
 
         else:
 
@@ -1508,7 +1508,7 @@ async def finalize_publish(update, context):
         [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
     ])
 
-    # ===== WYBÓR LOGO (VIP = ANIMACJA) =====
+    # ===== WYBÓR LOGO (zostaje jak było) =====
     if topic == VIP_TOPIC and VIP_LOGO_URL:
 
         await context.bot.send_animation(
@@ -1542,7 +1542,6 @@ async def finalize_publish(update, context):
             "legit_link": context.user_data.get("legit_link")
         }
 
-        # 🔥 COOLDOWN TYLKO DLA WTS
         set_last_post(user.id)
         increment_posts(username)
 
@@ -1562,6 +1561,7 @@ async def finalize_publish(update, context):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    
 # ================= MAIN =================
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -1591,6 +1591,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
