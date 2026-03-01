@@ -114,6 +114,7 @@ def get_product_emoji(name: str) -> str:
 
         "📑": [
             "recka", "recepty", "recepta", "recki"
+        ],
 
         "💤": [
             "nasen", "zolpidem", "relanium",
@@ -124,7 +125,7 @@ def get_product_emoji(name: str) -> str:
         ],
         
         "🇵🇱": [
-            "feta", "polak", "krajówa", "ryba", "feciura"
+            "feta", "polak", "krajowa", "ryba", "feciura"
         ],
 
         "💜": [
@@ -146,7 +147,7 @@ def get_product_emoji(name: str) -> str:
             "koks", "kokos", "koko",
             "koperta", "coke", "cocaina", "kokaina",
             "biała", "biala", "biały", "bialy",
-            "sniff", "kreska", "kreski", "cocos", 
+            "sniff", "kreska", "kreski", "cocos",
             "cocoos"
         ],
 
@@ -194,7 +195,7 @@ def get_product_emoji(name: str) -> str:
 
         "💳": [
             "sim", "starter", "karta sim", "karty sim",
-            "starter sim", "esim", "SIMKI"
+            "starter sim", "esim", "simki"
         ]
     }
 
@@ -204,7 +205,7 @@ def get_product_emoji(name: str) -> str:
                 return emoji
 
     return "📦"
-
+    
 # ================= ULTRA HARDCORE PRICE DETECTOR V3 =================
 def contains_price_hardcore(text: str) -> bool:
 
@@ -1566,6 +1567,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
