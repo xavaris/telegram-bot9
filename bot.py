@@ -528,34 +528,21 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
+    # 🔥 JEDNO LOGO NAD POSTEM
     await context.bot.send_photo(
         chat_id=GROUP_ID,
         message_thread_id=VIP_TOPIC,
-        photo=LOGO_URL,
-        caption=caption,
+        photo=VIP_LOGO_URL
+    )
+
+    # 🔥 POST
+    await context.bot.send_message(
+        chat_id=GROUP_ID,
+        message_thread_id=VIP_TOPIC,
+        text=caption,
         parse_mode="HTML",
         reply_markup=reply_markup
     )
-    
-    # ===== WYBÓR LOGO =====
-    if VIP_LOGO_URL:
-        await context.bot.send_animation(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            animation=VIP_LOGO_URL,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-    else:
-        await context.bot.send_photo(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            photo=LOGO_URL,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
     
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -867,6 +854,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ================= VIP AUTO START =================
     if query.data == "VIP_AUTO_START":
+
         if not user.username or not is_vip_vendor(user.username.lower()):
             await query.answer("Brak dostępu.", show_alert=True)
             return
@@ -896,6 +884,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         city = city_map.get(ad_data.get("city"))
+
         options = [
             option_map[o]
             for o in ad_data.get("options", [])
@@ -904,7 +893,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         content = "\n".join(
             f"{get_product_emoji(p)} {smart_mask_caps(p)}"
-            for p in ad_data["products"]
+            for p in ad_data.get("products", [])
         )
 
         caption = vip_template(
@@ -917,17 +906,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             legit_link=ad_data.get("legit_link")
         )
 
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
+        ])
 
-            await context.bot.send_photo(
-                chat_id=GROUP_ID,
-                message_thread_id=VIP_TOPIC,
-                photo=LOGO_URL,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
-                ])
-            )
+        # 🔥 LOGO NAD POSTEM
+        await context.bot.send_photo(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            photo=VIP_LOGO_URL
+        )
+
+        # 🔥 POST
+        await context.bot.send_message(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            text=caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
 
         context.job_queue.run_repeating(
             vip_auto_post,
@@ -943,21 +940,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("AUTO START WŁĄCZONY 🚀")
         await vip_panel(update, context)
         return
-    
-    # ================= VIP AUTO STOP =================
-    if query.data == "VIP_AUTO_STOP":
-        jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
-
-        if not jobs:
-            await query.answer("AUTO już wyłączony.", show_alert=True)
-            return
-
-        for job in jobs:
-            job.schedule_removal()
-
-        await query.answer("AUTO STOP 🛑")
-        await vip_panel(update, context)
-        return
+        
 
     # ================= VIP BACK =================
     if query.data == "VIP_BACK_START":
@@ -1427,6 +1410,7 @@ async def finalize_publish(update, context):
     post_type = context.user_data.get("type")
 
     # ================= WTS =================
+    # ================= WTS =================
     if "wts_products" in context.user_data:
 
         shop_link = context.user_data.get("shop_link")
@@ -1437,7 +1421,7 @@ async def finalize_publish(update, context):
             for p in context.user_data.get("wts_products", [])
         )
 
-        # 🔥 VIP MA GOLD LAYOUT ALE PUBLIKUJE W WTS
+        # ===== VIP =====
         if is_vip_vendor(username):
 
             caption = vip_template(
@@ -1450,8 +1434,26 @@ async def finalize_publish(update, context):
                 legit_link
             )
 
-            topic = WTS_TOPIC  # 🔥 TUTAJ JEST ZMIANA
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+            ])
 
+            # LOGO NAD POSTEM
+            await context.bot.send_photo(
+                chat_id=GROUP_ID,
+                message_thread_id=WTS_TOPIC,
+                photo=VIP_LOGO_URL
+            )
+
+            await context.bot.send_message(
+                chat_id=GROUP_ID,
+                message_thread_id=WTS_TOPIC,
+                text=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+
+        # ===== NORMAL VENDOR =====
         else:
 
             caption = vendor_template(
@@ -1463,7 +1465,18 @@ async def finalize_publish(update, context):
                 options
             )
 
-            topic = WTS_TOPIC
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+            ])
+
+            await context.bot.send_photo(
+                chat_id=GROUP_ID,
+                message_thread_id=WTS_TOPIC,
+                photo=LOGO_URL,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
             
     # ================= WTB =================
     elif post_type == "WTB":
@@ -1506,19 +1519,7 @@ async def finalize_publish(update, context):
         [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
     ])
 
-    # ===== WYBÓR LOGO (zostaje jak było) =====
-    if topic == VIP_TOPIC and VIP_LOGO_URL:
-
-        await context.bot.send_animation(
-            chat_id=GROUP_ID,
-            message_thread_id=topic,
-            animation=VIP_LOGO_URL,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-
-    else:
+    if post_type in ["WTB", "WTT"]:
 
         await context.bot.send_photo(
             chat_id=GROUP_ID,
@@ -1589,6 +1590,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
