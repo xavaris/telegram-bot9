@@ -140,7 +140,7 @@ def get_product_emoji(name: str) -> str:
             "kryx", "krysztal", "kryształ",
             "crystal", "ice",
             "mefedron", "mefa", "mef", "kamien", "kamień", "bezwonny",
-            "m3ff"
+            "m3ff", "ewa"
         ],
 
         "❄️": [
@@ -1572,6 +1572,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
