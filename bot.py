@@ -498,7 +498,7 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
 
     option_map = {
         "OPT_DOLOT": "#DOLOT",
-        "OPT_UBER": "#UBERPAKA"
+        "OPT_UBER": "#UBERPAKA",
         "OPT_H2H": "#H2H"
     }
 
@@ -1572,6 +1572,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
