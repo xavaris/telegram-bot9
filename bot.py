@@ -907,7 +907,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             legit_link=ad_data.get("legit_link")
         )
 
-         if VIP_LOGO_URL:
+        if VIP_LOGO_URL:
             await context.bot.send_animation(
                 chat_id=GROUP_ID,
                 message_thread_id=VIP_TOPIC,
@@ -1438,7 +1438,9 @@ async def finalize_publish(update, context):
             for p in context.user_data.get("wts_products", [])
         )
 
-        if is_vip_vendor(username) and shop_link is not None:
+        # 🔥 JEŚLI VIP → LECI DO TOP VENDOR
+        if is_vip_vendor(username):
+
             caption = vip_template(
                 username,
                 content,
@@ -1448,8 +1450,11 @@ async def finalize_publish(update, context):
                 shop_link,
                 legit_link
             )
+
             topic = VIP_TOPIC
+
         else:
+
             caption = vendor_template(
                 "WTS",
                 f"@{username}",
@@ -1458,8 +1463,9 @@ async def finalize_publish(update, context):
                 city,
                 options
             )
-            topic = WTS_TOPIC
 
+            topic = WTS_TOPIC
+            
     # ================= WTB =================
     elif post_type == "WTB":
 
@@ -1584,6 +1590,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
