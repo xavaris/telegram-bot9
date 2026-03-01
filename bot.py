@@ -112,6 +112,23 @@ def get_product_emoji(name: str) -> str:
 
     product_groups = {
 
+        "📑": [
+            "recka", "recepty", "recepta", "recki"
+
+        "💤": [
+            "nasen", "zolpidem", "relanium",
+        ],
+
+        "🍁": [
+            "klony", "clonozepan", "clony",
+        ],
+        
+
+        "🇵🇱": [
+            "feta", "polak", "krajówa", "ryba", "feciura"
+        ],
+
+        
         "💜": [
             "pix", "pixy", "piksy", "piksi",
             "eksta", "exta", "extasy", "ecstasy",
@@ -123,14 +140,16 @@ def get_product_emoji(name: str) -> str:
             "mewa", "3cmc", "4mmc", "cmc", "mmc",
             "kryx", "krysztal", "kryształ",
             "crystal", "ice",
-            "mefedron", "mefa", "mef", "kamien", "kamień", "bezwonny"
+            "mefedron", "mefa", "mef", "kamien", "kamień", "bezwonny",
+            "m3ff"
         ],
 
         "❄️": [
             "koks", "kokos", "koko",
             "koperta", "coke", "cocaina", "kokaina",
             "biała", "biala", "biały", "bialy",
-            "sniff", "kreska", "kreski"
+            "sniff", "kreska", "kreski", "cocos", 
+            "cocoos"
         ],
 
         "🌿": [
@@ -146,7 +165,7 @@ def get_product_emoji(name: str) -> str:
             "xanax", "alpra", "alprazolam",
             "clonazepam", "rivotril", "diazepam",
             "tabs", "tabsy", "tabletki",
-            "pigula", "piguły", "pigułki"
+            "pigula", "piguły", "pigułki", "xani", "xanii"
         ],
 
         "💨": [
@@ -167,7 +186,8 @@ def get_product_emoji(name: str) -> str:
 
         "🚬": [
             "epapieros", "e-papieros",
-            "epapierosy", "e-papierosy"
+            "epapierosy", "e-papierosy", "epety",
+            "e-pety"
         ],
 
         "✨": [
@@ -1548,6 +1568,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
