@@ -907,16 +907,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             legit_link=ad_data.get("legit_link")
         )
 
-        await context.bot.send_photo(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            photo=LOGO_URL,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
-            ])
-        )
+         if VIP_LOGO_URL:
+            await context.bot.send_animation(
+                chat_id=GROUP_ID,
+                message_thread_id=VIP_TOPIC,
+                animation=VIP_LOGO_URL,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
+                ])
+            )
+        else:
+            await context.bot.send_photo(
+                chat_id=GROUP_ID,
+                message_thread_id=VIP_TOPIC,
+                photo=LOGO_URL,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
+                ])
+            )
 
         context.job_queue.run_repeating(
             vip_auto_post,
@@ -1572,6 +1584,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
