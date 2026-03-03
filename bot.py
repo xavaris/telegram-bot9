@@ -1543,7 +1543,7 @@ async def finalize_publish(update, context):
 
         await context.bot.send_photo(
             chat_id=GROUP_ID,
-            message_thread_id=topic,
+            message_thread_id=topic_id,
             photo=photo_url,
             caption=caption,
             parse_mode="HTML",
@@ -1607,6 +1607,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
