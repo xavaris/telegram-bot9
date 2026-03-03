@@ -155,7 +155,7 @@ def get_product_emoji(name: str) -> str:
             "kryx", "krysztal", "kryształ",
             "crystal", "ice",
             "mefedron", "mefa", "mef", "kamien", "kamień", "bezwonny",
-            "m3ff", "ewa"
+            "m3ff", "ewa", "krix"
         ],
 
         "❄️": [
@@ -181,7 +181,7 @@ def get_product_emoji(name: str) -> str:
             "xanax", "alpra", "alprazolam",
             "clonazepam", "rivotril", "diazepam",
             "tabs", "tabsy", "tabletki",
-            "pigula", "piguły", "pigułki", "xani", "xanii"
+            "pigula", "piguły", "pigułki", "xani", "xanii", "xanni"
         ],
 
         "💨": [
@@ -1675,6 +1675,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
