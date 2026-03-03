@@ -24,7 +24,7 @@ GROUP_ID = int(os.getenv("GROUP_ID"))
 WTB_TOPIC = int(os.getenv("WTB"))
 WTS_TOPIC = int(os.getenv("WTS"))
 WTT_TOPIC = int(os.getenv("WTT"))
-VIP_TOPIC = 3  # 🔥 VIP VENDOR TOPIC ID
+VIP_TOPIC = int(os.getenv("VIP_TOPIC"))
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 LOGO_URL = os.getenv("LOGO_URL")
 VIP_LOGO_URL = os.getenv("VIP_LOGO_URL")
@@ -1637,6 +1637,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
