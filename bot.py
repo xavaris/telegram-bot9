@@ -1182,17 +1182,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
         # ================= OPT DONE =================
         if query.data == "OPT_DONE":
-    
-            post_type = context.user_data.get("type")
-    
-            # 🔥 LINKI TYLKO DLA WTS
+
+            # 🔥 USUWAMY PRZYCISKI I POKAZUJEMY LOADING
+            await query.edit_message_text(
+                "<b>⏳ Publikuję ogłoszenie...</b>",
+                parse_mode="HTML"
+            )
+
+            # 🔥 LINKI TYLKO DLA VIP WTS
             if (
                 "wts_products" in context.user_data
                 and user.username
                 and is_vip_vendor(user.username.lower())
             ):
                 context.user_data["awaiting_shop"] = True
-    
+
                 await query.edit_message_text(
                     "<b>🔗 PODAJ LINK DO SKLEPU (telegra.ph)</b>\n\n"
                     "Możesz też kliknąć POMIŃ.",
@@ -1202,8 +1206,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ])
                 )
                 return
-    
+
             await finalize_publish(update, context)
+
+            # 🔥 EDYTUJEMY WIADOMOŚĆ NA SUKCES
+            await query.edit_message_text(
+                "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
+                parse_mode="HTML"
+            )
+
             return
     
         # ================= WTB / WTT =================
@@ -1638,6 +1649,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
