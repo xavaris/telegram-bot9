@@ -32,6 +32,13 @@ BOT_USERNAME = os.getenv("BOT_USERNAME")
 
 # ================= FAST POST MEMORY (DODANE) =================
 last_ads = {}
+# ================= GLOBAL CALLBACK LOCK =================
+active_callbacks = set()
+
+active_publications = set()
+
+# ================= VIP AUTO LOCK =================
+active_vip_auto = set()
 
 # ================= DATABASE =================
 conn = sqlite3.connect("market.db", check_same_thread=False)
@@ -797,412 +804,454 @@ async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
 # ================= CALLBACK HANDLER =================
+# ================= CALLBACK HANDLER =================
+# ================= CALLBACK HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     query = update.callback_query
-    await query.answer()
     user = query.from_user
 
-        
-    # ================= VIP SKIP SHOP =================
-    if query.data == "VIP_SKIP_SHOP":
-        context.user_data.pop("awaiting_shop", None)
-        context.user_data["awaiting_legit"] = True
-
-        await query.edit_message_text(
-            "<b>🔗 PODAJ LINK DO LEGIT CHECK (GRUPA TELEGRAM)</b>\n\n"
-            "Np: https://t.me/twojagrupa\n"
-            "Możesz też kliknąć POMIŃ.",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_LEGIT")]
-            ])
-        )
+    # 🔒 GLOBAL CALLBACK LOCK
+    if user.id in active_callbacks:
+        await query.answer()
         return
 
+    active_callbacks.add(user.id)
 
-    # ================= VIP SKIP LEGIT =================
-    if query.data == "VIP_SKIP_LEGIT":
-        context.user_data.pop("awaiting_legit", None)
-        await finalize_publish(update, context)
-        return
+    try:
+        await query.answer()
 
-    # ================= VIP PANEL =================
-    if query.data == "VIP_PANEL":
-        await vip_panel(update, context)
-        return
-
-    if query.data == "VIP_STATS":
-        if not user.username or not is_vip_vendor(user.username.lower()):
-            await query.edit_message_text("<b>BRAK DOSTĘPU.</b>", parse_mode="HTML")
-            return
-
-        vendor = get_vendor(user.username.lower())
-        posts = vendor[4] if vendor else 0
-        since = vendor[1] if vendor else "-"
-
-        await query.edit_message_text(
-            f"<b>📊 VIP STATY</b>\n\n"
-            f"<b>👤 @{user.username}</b>\n"
-            f"<b>🗓 OD:</b> {since}\n"
-            f"<b>📊 OGŁOSZEŃ:</b> {posts}",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_PANEL")]
-            ])
-        )
-        return
-
-    # ================= VIP AUTO START =================
-    if query.data == "VIP_AUTO_START":
-
-        if not user.username or not is_vip_vendor(user.username.lower()):
-            await query.answer("Brak dostępu.", show_alert=True)
-            return
-
-        ad_data = last_ads.get(user.id)
-
-        if not ad_data:
-            await query.answer("Najpierw opublikuj ogłoszenie.", show_alert=True)
-            return
-
-        old_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
-        for job in old_jobs:
-            job.schedule_removal()
-
-        username = user.username.lower()
-
-        city_map = {
-            "CITY_GDY": "#GDY",
-            "CITY_GDA": "#GDA",
-            "CITY_SOP": "#SOP"
-        }
-
-        option_map = {
-            "OPT_DOLOT": "#DOLOT",
-            "OPT_UBER": "#UBERPAKA",
-            "OPT_H2H": "#H2H"
-        }
-
-        city = city_map.get(ad_data.get("city"))
-
-        options = [
-            option_map[o]
-            for o in ad_data.get("options", [])
-            if o in option_map
-        ]
-
-        content = "\n".join(
-            f"{get_product_emoji(p)} {smart_mask_caps(p)}"
-            for p in ad_data.get("products", [])
-        )
-
-        caption = vip_template(
-            username=username,
-            content=content,
-            vendor_data=get_vendor(username),
-            city=city,
-            options=options,
-            shop_link=ad_data.get("shop_link"),
-            legit_link=ad_data.get("legit_link")
-        )
-
-        reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
-        ])
-
-        # 🔥 LOGO NAD POSTEM
-        await context.bot.send_photo(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            photo=VIP_LOGO_URL
-        )
-
-        # 🔥 POST
-        await context.bot.send_message(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            text=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-
-        context.job_queue.run_repeating(
-            vip_auto_post,
-            interval=21600,
-            first=21600,
-            name=f"vip_auto_{user.id}",
-            data={
-                "username": username,
-                "ad_data": ad_data
-            }
-        )
-
-        await query.answer("AUTO START WŁĄCZONY 🚀")
-        await vip_panel(update, context)
-        return
-        
-
-    # ================= VIP BACK =================
-    if query.data == "VIP_BACK_START":
-        keyboard = [[
-            InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
-            InlineKeyboardButton("💼 WTS", callback_data="WTS"),
-            InlineKeyboardButton("🔁 WTT", callback_data="WTT"),
-        ]]
-
-        if user.username and is_vip_vendor(user.username.lower()):
-            keyboard.append([InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")])
-
-        if user.id == ADMIN_ID:
-            keyboard.append([InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")])
-
-        await query.edit_message_text(
-            "<b>WYBIERZ TYP OGŁOSZENIA:</b>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return
-    # ================= ADMIN PANEL =================
-    if query.data == "ADMIN" and user.id == ADMIN_ID:
-        await admin_panel(update, context)
-        return
-
-    if query.data == "CLEAR_CD" and user.id == ADMIN_ID:
-        clear_all_cooldowns()
-        await query.edit_message_text("<b>COOLDOWNY USUNIĘTE.</b>", parse_mode="HTML")
-        return
-
-    if query.data == "LIST_VENDOR" and user.id == ADMIN_ID:
-        vendors = list_vendors()
-        text = ""
-        for v in vendors:
-            vip_badge = " 💎VIP" if len(v) >= 4 and int(v[3]) == 1 else ""
-            text += f"<b>@{v[0]}</b>{vip_badge} | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
-        await query.edit_message_text(text or "<b>BRAK.</b>", parse_mode="HTML")
-        return
-
-    if query.data in ["ADD_VENDOR", "REMOVE_VENDOR"] and user.id == ADMIN_ID:
-        context.user_data["admin_action"] = query.data
-        await query.edit_message_text("<b>PODAJ @USERNAME:</b>", parse_mode="HTML")
-        return
-
-    # ================= FAST POST =================
-    if query.data == "FAST_POST":
-
-        if time.time() - get_last_post(user.id) < 6 * 60 * 60:
-            await query.answer("COOLDOWN 6H.", show_alert=True)
-            return
-
-        data = last_ads.get(user.id)
-
-        if not data:
-            await query.edit_message_text("<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>", parse_mode="HTML")
-            return
-
-        context.user_data["wts_products"] = data["products"]
-        context.user_data["city"] = data["city"]
-        context.user_data["options"] = data["options"]
-        context.user_data["shop_link"] = data.get("shop_link")
-        context.user_data["legit_link"] = data.get("legit_link")
-
-        await finalize_publish(update, context)
-        return
-
-    # ================= NOWE WTS =================
-    if query.data == "NEW_WTS":
-        if not user.username:
+        if query.data == "VIP_SKIP_SHOP":
+            context.user_data.pop("awaiting_shop", None)
+            context.user_data["awaiting_legit"] = True
+    
             await query.edit_message_text(
-                "<b>❌ Aby publikować WTS musisz ustawić @username.</b>",
-                parse_mode="HTML"
+                "<b>🔗 PODAJ LINK DO LEGIT CHECK (GRUPA TELEGRAM)</b>\n\n"
+                "Np: https://t.me/twojagrupa\n"
+                "Możesz też kliknąć POMIŃ.",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_LEGIT")]
+                ])
             )
             return
+    
+    
+        # ================= VIP SKIP LEGIT =================
+        if query.data == "VIP_SKIP_LEGIT":
+            context.user_data.pop("awaiting_legit", None)
+            await finalize_publish(update, context)
+            return
+    
+        # ================= VIP PANEL =================
+        if query.data == "VIP_PANEL":
+            await vip_panel(update, context)
+            return
+    
+        if query.data == "VIP_STATS":
+            if not user.username or not is_vip_vendor(user.username.lower()):
+                await query.edit_message_text("<b>BRAK DOSTĘPU.</b>", parse_mode="HTML")
+                return
+    
+            vendor = get_vendor(user.username.lower())
+            posts = vendor[4] if vendor else 0
+            since = vendor[1] if vendor else "-"
+    
+            await query.edit_message_text(
+                f"<b>📊 VIP STATY</b>\n\n"
+                f"<b>👤 @{user.username}</b>\n"
+                f"<b>🗓 OD:</b> {since}\n"
+                f"<b>📊 OGŁOSZEŃ:</b> {posts}",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_PANEL")]
+                ])
+            )
+            return
+    
+        # ================= VIP AUTO START =================
+        if query.data == "VIP_AUTO_START":
 
-        context.user_data["vendor"] = get_vendor(user.username.lower())
-        await ask_product_count(query)
-        return
+            if user.id in active_vip_auto:
+                return
 
-    # ================= SIM NETWORK SELECTION =================
-    if query.data.startswith("NET_"):
-        if not context.user_data.get("selecting_sim_network"):
+            active_vip_auto.add(user.id)
+
+            try:
+
+                if not user.username or not is_vip_vendor(user.username.lower()):
+                    await query.answer("Brak dostępu.", show_alert=True)
+                    return
+
+                ad_data = last_ads.get(user.id)
+
+                if not ad_data:
+                    await query.answer("Najpierw opublikuj ogłoszenie.", show_alert=True)
+                    return
+
+                old_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
+                for job in old_jobs:
+                    job.schedule_removal()
+
+                username = user.username.lower()
+
+                city_map = {
+                    "CITY_GDY": "#GDY",
+                    "CITY_GDA": "#GDA",
+                    "CITY_SOP": "#SOP"
+                }
+
+                option_map = {
+                    "OPT_DOLOT": "#DOLOT",
+                    "OPT_UBER": "#UBERPAKA",
+                    "OPT_H2H": "#H2H"
+                }
+
+                city = city_map.get(ad_data.get("city"))
+
+                options = [
+                    option_map[o]
+                    for o in ad_data.get("options", [])
+                    if o in option_map
+                ]
+
+                content = "\n".join(
+                    f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+                    for p in ad_data.get("products", [])
+                )
+
+                caption = vip_template(
+                    username=username,
+                    content=content,
+                    vendor_data=get_vendor(username),
+                    city=city,
+                    options=options,
+                    shop_link=ad_data.get("shop_link"),
+                    legit_link=ad_data.get("legit_link")
+                )
+
+                reply_markup = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
+                ])
+
+                await context.bot.send_photo(
+                    chat_id=GROUP_ID,
+                    message_thread_id=VIP_TOPIC,
+                    photo=VIP_LOGO_URL
+                )
+
+                await context.bot.send_message(
+                    chat_id=GROUP_ID,
+                    message_thread_id=VIP_TOPIC,
+                    text=caption,
+                    parse_mode="HTML",
+                    reply_markup=reply_markup
+                )
+
+                context.job_queue.run_repeating(
+                    vip_auto_post,
+                    interval=21600,
+                    first=21600,
+                    name=f"vip_auto_{user.id}",
+                    data={
+                        "username": username,
+                        "ad_data": ad_data
+                    }
+                )
+
+                await query.answer("AUTO START WŁĄCZONY 🚀")
+                await vip_panel(update, context)
+
+            finally:
+                active_vip_auto.discard(user.id)
+
             return
 
-        network_map = {
-            "NET_PLAY": "🟣 Play",
-            "NET_ORANGE": "🟠 Orange",
-            "NET_PLUS": "🟢 Plus",
-            "NET_TMOBILE": "🔴 T-Mobile",
-            "NET_HEYAH": "🔺 Heyah",
-            "NET_NJU": "🟧 Nju Mobile",
-            "NET_VIRGIN": "🟣 Virgin Mobile",
-            "NET_LYCA": "🔵 LycaMobile",
-            "NET_VIKINGS": "⚔️ Mobile Vikings",
-            "NET_PREMIUM": "⭐ Premium Mobile",
-            "NET_A2": "🅰️ A2Mobile",
-            "NET_FAKT": "📰 Fakt Mobile",
-            "NET_BIEDRONKA": "🛒 Biedronka Mobile"
-        }
 
-        if query.data == "NET_DONE":
-            selected = context.user_data.get("selected_networks", [])
+        # ================= VIP AUTO STOP =================
+        if query.data == "VIP_AUTO_STOP":
 
-            if not selected:
-                await query.answer("Wybierz przynajmniej 1 sieć ❗", show_alert=True)
+            if not user.username or not is_vip_vendor(user.username.lower()):
+                await query.answer("Brak dostępu.", show_alert=True)
                 return
 
-            product_name = context.user_data.get("pending_sim_product")
-            network_text = " | ".join(selected)
+            jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
 
-            full_product = f"{product_name} | {network_text}"
-            context.user_data["wts_products"].append(full_product)
-
-            context.user_data.pop("selecting_sim_network", None)
-            context.user_data.pop("pending_sim_product", None)
-            context.user_data.pop("selected_networks", None)
-
-            if len(context.user_data["wts_products"]) < context.user_data["wts_total"]:
-                await query.edit_message_text(
-                    f"<b>PODAJ PRODUKT {len(context.user_data['wts_products'])+1}:</b>",
-                    parse_mode="HTML"
-                )
+            if not jobs:
+                await query.answer("AUTO już wyłączony.", show_alert=True)
+                await vip_panel(update, context)
                 return
 
-            keyboard = [
-                [InlineKeyboardButton("GDY", callback_data="CITY_GDY")],
-                [InlineKeyboardButton("GDA", callback_data="CITY_GDA")],
-                [InlineKeyboardButton("SOP", callback_data="CITY_SOP")]
-            ]
+            for job in jobs:
+                job.schedule_removal()
 
+            await query.answer("AUTO STOP WYŁĄCZONY 🛑")
+            await vip_panel(update, context)
+            return
+            
+        # ================= VIP BACK =================
+        if query.data == "VIP_BACK_START":
+            keyboard = [[
+                InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
+                InlineKeyboardButton("💼 WTS", callback_data="WTS"),
+                InlineKeyboardButton("🔁 WTT", callback_data="WTT"),
+            ]]
+    
+            if user.username and is_vip_vendor(user.username.lower()):
+                keyboard.append([InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")])
+    
+            if user.id == ADMIN_ID:
+                keyboard.append([InlineKeyboardButton("⚙ ADMIN PANEL", callback_data="ADMIN")])
+    
             await query.edit_message_text(
-                "<b>WYBIERZ MIASTO:</b>",
+                "<b>WYBIERZ TYP OGŁOSZENIA:</b>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
-
-        network = network_map.get(query.data)
-        if not network:
+        # ================= ADMIN PANEL =================
+        if query.data == "ADMIN" and user.id == ADMIN_ID:
+            await admin_panel(update, context)
             return
-
-        selected = context.user_data.get("selected_networks", [])
-
-        if network in selected:
-            selected.remove(network)
-            await query.answer("Usunięto ❌")
-        else:
-            selected.append(network)
-            await query.answer("Dodano ✅")
-        return
-
-    # ================= WTS =================
-    if query.data == "WTS":
-        if not user.username:
-            await query.edit_message_text("<b>USTAW USERNAME.</b>", parse_mode="HTML")
+    
+        if query.data == "CLEAR_CD" and user.id == ADMIN_ID:
+            clear_all_cooldowns()
+            await query.edit_message_text("<b>COOLDOWNY USUNIĘTE.</b>", parse_mode="HTML")
             return
-
-        vendor = get_vendor(user.username.lower())
-        if not vendor:
-            await query.edit_message_text("<b>TYLKO VENDOR.</b>", parse_mode="HTML")
+    
+        if query.data == "LIST_VENDOR" and user.id == ADMIN_ID:
+            vendors = list_vendors()
+            text = ""
+            for v in vendors:
+                vip_badge = " 💎VIP" if len(v) >= 4 and int(v[3]) == 1 else ""
+                text += f"<b>@{v[0]}</b>{vip_badge} | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
+            await query.edit_message_text(text or "<b>BRAK.</b>", parse_mode="HTML")
             return
-
-        if time.time() - get_last_post(user.id) < 6 * 60 * 60:
-            await query.edit_message_text("<b>COOLDOWN 6H.</b>", parse_mode="HTML")
+    
+        if query.data in ["ADD_VENDOR", "REMOVE_VENDOR"] and user.id == ADMIN_ID:
+            context.user_data["admin_action"] = query.data
+            await query.edit_message_text("<b>PODAJ @USERNAME:</b>", parse_mode="HTML")
             return
-
-        context.user_data["vendor"] = vendor
-        keyboard = []
-
-        if user.id in last_ads:
-            keyboard.append([InlineKeyboardButton("🚀 POST (Wyślij to samo)", callback_data="FAST_POST")])
-
-        keyboard.append([InlineKeyboardButton("➕ NOWE OGŁOSZENIE", callback_data="NEW_WTS")])
-
-        await query.edit_message_text(
-            "<b>PANEL WTS</b>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return
-
-    if query.data.startswith("CNT_"):
-        context.user_data["wts_total"] = int(query.data.split("_")[1])
-        context.user_data["wts_products"] = []
-        await query.edit_message_text("<b>PODAJ PRODUKT 1:</b>", parse_mode="HTML")
-        return
-
-    # ================= CITY SELECTION =================
-    if query.data in ["CITY_GDY", "CITY_GDA", "CITY_SOP"]:
-        has_wts_flow = "wts_total" in context.user_data or "wts_products" in context.user_data
-        has_text_flow = "type" in context.user_data and "content" in context.user_data
-
-        if not has_wts_flow and not has_text_flow:
-            await query.answer("To menu jest nieaktywne. Zacznij od /start.", show_alert=True)
+    
+        # ================= FAST POST =================
+        if query.data == "FAST_POST":
+    
+            if time.time() - get_last_post(user.id) < 6 * 60 * 60:
+                await query.answer("COOLDOWN 6H.", show_alert=True)
+                return
+    
+            data = last_ads.get(user.id)
+    
+            if not data:
+                await query.edit_message_text("<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>", parse_mode="HTML")
+                return
+    
+            context.user_data["wts_products"] = data["products"]
+            context.user_data["city"] = data["city"]
+            context.user_data["options"] = data["options"]
+            context.user_data["shop_link"] = data.get("shop_link")
+            context.user_data["legit_link"] = data.get("legit_link")
+    
+            await finalize_publish(update, context)
             return
-
-        context.user_data["city"] = query.data
-        context.user_data["options"] = []
-
-        keyboard = [
-            [InlineKeyboardButton("✈️ DOLOT", callback_data="OPT_DOLOT")],
-            [InlineKeyboardButton("🚗 UBER PAKA", callback_data="OPT_UBER")],
-            [InlineKeyboardButton("🤝 H2H", callback_data="OPT_H2H")],
-            [InlineKeyboardButton("❌ BRAK", callback_data="OPT_BRAK")],
-            [InlineKeyboardButton("✅ PUBLIKUJ", callback_data="OPT_DONE")]
-        ]
-
-        await query.edit_message_text(
-            "<b>WYBIERZ OPCJE:</b>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return
-
-    if query.data in ["OPT_DOLOT", "OPT_UBER", "OPT_H2H"]:
-        if query.data not in context.user_data.get("options", []):
-            context.user_data.setdefault("options", []).append(query.data)
-        return
-
-    if query.data == "OPT_BRAK":
-        context.user_data["options"] = []
-        return
-
-    # ================= OPT DONE =================
-    if query.data == "OPT_DONE":
-
-        post_type = context.user_data.get("type")
-
-        # 🔥 LINKI TYLKO DLA WTS
-        if (
-            "wts_products" in context.user_data
-            and user.username
-            and is_vip_vendor(user.username.lower())
-        ):
-            context.user_data["awaiting_shop"] = True
-
+    
+        # ================= NOWE WTS =================
+        if query.data == "NEW_WTS":
+            if not user.username:
+                await query.edit_message_text(
+                    "<b>❌ Aby publikować WTS musisz ustawić @username.</b>",
+                    parse_mode="HTML"
+                )
+                return
+    
+            context.user_data["vendor"] = get_vendor(user.username.lower())
+            await ask_product_count(query)
+            return
+    
+        # ================= SIM NETWORK SELECTION =================
+        if query.data.startswith("NET_"):
+            if not context.user_data.get("selecting_sim_network"):
+                return
+    
+            network_map = {
+                "NET_PLAY": "🟣 Play",
+                "NET_ORANGE": "🟠 Orange",
+                "NET_PLUS": "🟢 Plus",
+                "NET_TMOBILE": "🔴 T-Mobile",
+                "NET_HEYAH": "🔺 Heyah",
+                "NET_NJU": "🟧 Nju Mobile",
+                "NET_VIRGIN": "🟣 Virgin Mobile",
+                "NET_LYCA": "🔵 LycaMobile",
+                "NET_VIKINGS": "⚔️ Mobile Vikings",
+                "NET_PREMIUM": "⭐ Premium Mobile",
+                "NET_A2": "🅰️ A2Mobile",
+                "NET_FAKT": "📰 Fakt Mobile",
+                "NET_BIEDRONKA": "🛒 Biedronka Mobile"
+            }
+    
+            if query.data == "NET_DONE":
+                selected = context.user_data.get("selected_networks", [])
+    
+                if not selected:
+                    await query.answer("Wybierz przynajmniej 1 sieć ❗", show_alert=True)
+                    return
+    
+                product_name = context.user_data.get("pending_sim_product")
+                network_text = " | ".join(selected)
+    
+                full_product = f"{product_name} | {network_text}"
+                context.user_data["wts_products"].append(full_product)
+    
+                context.user_data.pop("selecting_sim_network", None)
+                context.user_data.pop("pending_sim_product", None)
+                context.user_data.pop("selected_networks", None)
+    
+                if len(context.user_data["wts_products"]) < context.user_data["wts_total"]:
+                    await query.edit_message_text(
+                        f"<b>PODAJ PRODUKT {len(context.user_data['wts_products'])+1}:</b>",
+                        parse_mode="HTML"
+                    )
+                    return
+    
+                keyboard = [
+                    [InlineKeyboardButton("GDY", callback_data="CITY_GDY")],
+                    [InlineKeyboardButton("GDA", callback_data="CITY_GDA")],
+                    [InlineKeyboardButton("SOP", callback_data="CITY_SOP")]
+                ]
+    
+                await query.edit_message_text(
+                    "<b>WYBIERZ MIASTO:</b>",
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                return
+    
+            network = network_map.get(query.data)
+            if not network:
+                return
+    
+            selected = context.user_data.get("selected_networks", [])
+    
+            if network in selected:
+                selected.remove(network)
+                await query.answer("Usunięto ❌")
+            else:
+                selected.append(network)
+                await query.answer("Dodano ✅")
+            return
+    
+        # ================= WTS =================
+        if query.data == "WTS":
+            if not user.username:
+                await query.edit_message_text("<b>USTAW USERNAME.</b>", parse_mode="HTML")
+                return
+    
+            vendor = get_vendor(user.username.lower())
+            if not vendor:
+                await query.edit_message_text("<b>TYLKO VENDOR.</b>", parse_mode="HTML")
+                return
+    
+            if time.time() - get_last_post(user.id) < 6 * 60 * 60:
+                await query.edit_message_text("<b>COOLDOWN 6H.</b>", parse_mode="HTML")
+                return
+    
+            context.user_data["vendor"] = vendor
+            keyboard = []
+    
+            if user.id in last_ads:
+                keyboard.append([InlineKeyboardButton("🚀 POST (Wyślij to samo)", callback_data="FAST_POST")])
+    
+            keyboard.append([InlineKeyboardButton("➕ NOWE OGŁOSZENIE", callback_data="NEW_WTS")])
+    
             await query.edit_message_text(
-                "<b>🔗 PODAJ LINK DO SKLEPU (telegra.ph)</b>\n\n"
-                "Możesz też kliknąć POMIŃ.",
+                "<b>PANEL WTS</b>",
                 parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_SHOP")]
-                ])
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
-
-        await finalize_publish(update, context)
-        return
-
-    # ================= WTB / WTT =================
-    if query.data in ["WTB", "WTT"]:
-        if not user.username:
+    
+        if query.data.startswith("CNT_"):
+            context.user_data["wts_total"] = int(query.data.split("_")[1])
+            context.user_data["wts_products"] = []
+            await query.edit_message_text("<b>PODAJ PRODUKT 1:</b>", parse_mode="HTML")
+            return
+    
+        # ================= CITY SELECTION =================
+        if query.data in ["CITY_GDY", "CITY_GDA", "CITY_SOP"]:
+            has_wts_flow = "wts_total" in context.user_data or "wts_products" in context.user_data
+            has_text_flow = "type" in context.user_data and "content" in context.user_data
+    
+            if not has_wts_flow and not has_text_flow:
+                await query.answer("To menu jest nieaktywne. Zacznij od /start.", show_alert=True)
+                return
+    
+            context.user_data["city"] = query.data
+            context.user_data["options"] = []
+    
+            keyboard = [
+                [InlineKeyboardButton("✈️ DOLOT", callback_data="OPT_DOLOT")],
+                [InlineKeyboardButton("🚗 UBER PAKA", callback_data="OPT_UBER")],
+                [InlineKeyboardButton("🤝 H2H", callback_data="OPT_H2H")],
+                [InlineKeyboardButton("❌ BRAK", callback_data="OPT_BRAK")],
+                [InlineKeyboardButton("✅ PUBLIKUJ", callback_data="OPT_DONE")]
+            ]
+    
             await query.edit_message_text(
-                "<b>❌ Aby dodać ogłoszenie musisz ustawić @username w Telegramie.</b>",
-                parse_mode="HTML"
+                "<b>WYBIERZ OPCJE:</b>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
+    
+        if query.data in ["OPT_DOLOT", "OPT_UBER", "OPT_H2H"]:
+            if query.data not in context.user_data.get("options", []):
+                context.user_data.setdefault("options", []).append(query.data)
+            return
+    
+        if query.data == "OPT_BRAK":
+            context.user_data["options"] = []
+            return
+    
+        # ================= OPT DONE =================
+        if query.data == "OPT_DONE":
+    
+            post_type = context.user_data.get("type")
+    
+            # 🔥 LINKI TYLKO DLA WTS
+            if (
+                "wts_products" in context.user_data
+                and user.username
+                and is_vip_vendor(user.username.lower())
+            ):
+                context.user_data["awaiting_shop"] = True
+    
+                await query.edit_message_text(
+                    "<b>🔗 PODAJ LINK DO SKLEPU (telegra.ph)</b>\n\n"
+                    "Możesz też kliknąć POMIŃ.",
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⏭ POMIŃ", callback_data="VIP_SKIP_SHOP")]
+                    ])
+                )
+                return
+    
+            await finalize_publish(update, context)
+            return
+    
+        # ================= WTB / WTT =================
+        if query.data in ["WTB", "WTT"]:
+            if not user.username:
+                await query.edit_message_text(
+                    "<b>❌ Aby dodać ogłoszenie musisz ustawić @username w Telegramie.</b>",
+                    parse_mode="HTML"
+                )
+                return
+    
+            context.user_data["type"] = query.data
+            await query.edit_message_text("<b>NAPISZ TREŚĆ:</b>", parse_mode="HTML")
 
-        context.user_data["type"] = query.data
-        await query.edit_message_text("<b>NAPISZ TREŚĆ:</b>", parse_mode="HTML")
-        return
+    finally:
+        active_callbacks.discard(user.id)
     
 # ================= MESSAGE HANDLER =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1370,196 +1419,194 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # ================= ASK PRODUCT COUNT =================
+# ================= ASK PRODUCT COUNT =================
 async def ask_product_count(query):
-    keyboard = []
-    row = []
-    for i in range(1, 11):
-        row.append(InlineKeyboardButton(str(i), callback_data=f"CNT_{i}"))
-        if i % 5 == 0:
-            keyboard.append(row)
-            row = []
+
+    keyboard = [
+        [
+            InlineKeyboardButton("1", callback_data="CNT_1"),
+            InlineKeyboardButton("2", callback_data="CNT_2"),
+            InlineKeyboardButton("3", callback_data="CNT_3")
+        ],
+        [
+            InlineKeyboardButton("4", callback_data="CNT_4"),
+            InlineKeyboardButton("5", callback_data="CNT_5")
+        ]
+    ]
+
     await query.edit_message_text(
-        "<b>ILE PRODUKTÓW?</b>",
+        "<b>ILE PRODUKTÓW CHCESZ DODAĆ?</b>",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
-
+# ================= FINALIZE PUBLISH =================
 async def finalize_publish(update, context):
+
     user = update.effective_user
+
+    if not user.username:
+        return
+
     username = user.username.lower()
 
-    city_map = {
-        "CITY_GDY": "#GDY",
-        "CITY_GDA": "#GDA",
-        "CITY_SOP": "#SOP"
-    }
+    if user.id in active_publications:
+        return
 
-    option_map = {
-        "OPT_DOLOT": "#DOLOT",
-        "OPT_UBER": "#UBERPAKA",
-        "OPT_H2H": "#H2H"
-    }
+    active_publications.add(user.id)
 
-    city = city_map.get(context.user_data.get("city"))
-    options_raw = context.user_data.get("options", [])
-    options = [option_map[o] for o in options_raw if o in option_map]
+    try:
+        city_map = {
+            "CITY_GDY": "#GDY",
+            "CITY_GDA": "#GDA",
+            "CITY_SOP": "#SOP"
+        }
 
-    vendor_data = get_vendor(username)
+        option_map = {
+            "OPT_DOLOT": "#DOLOT",
+            "OPT_UBER": "#UBERPAKA",
+            "OPT_H2H": "#H2H"
+        }
 
-    post_type = context.user_data.get("type")
+        city = city_map.get(context.user_data.get("city"))
+        options_raw = context.user_data.get("options", [])
+        options = [option_map[o] for o in options_raw if o in option_map]
 
-    # ================= WTS =================
-    # ================= WTS =================
-    if "wts_products" in context.user_data:
+        vendor_data = get_vendor(username)
+        post_type = context.user_data.get("type")
 
-        shop_link = context.user_data.get("shop_link")
-        legit_link = context.user_data.get("legit_link")
+        # ================= WTS =================
+        if "wts_products" in context.user_data:
 
-        content = "\n".join(
-            f"{get_product_emoji(p)} {smart_mask_caps(p)}"
-            for p in context.user_data.get("wts_products", [])
-        )
+            shop_link = context.user_data.get("shop_link")
+            legit_link = context.user_data.get("legit_link")
 
-        # ===== VIP =====
-        if is_vip_vendor(username):
-
-            caption = vip_template(
-                username,
-                content,
-                vendor_data,
-                city,
-                options,
-                shop_link,
-                legit_link
+            content = "\n".join(
+                f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+                for p in context.user_data.get("wts_products", [])
             )
 
-            reply_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-            ])
+            if is_vip_vendor(username):
 
-            # LOGO NAD POSTEM
+                caption = vip_template(
+                    username,
+                    content,
+                    vendor_data,
+                    city,
+                    options,
+                    shop_link,
+                    legit_link
+                )
+
+                await context.bot.send_photo(
+                    chat_id=GROUP_ID,
+                    message_thread_id=WTS_TOPIC,
+                    photo=VIP_LOGO_URL
+                )
+
+                await context.bot.send_message(
+                    chat_id=GROUP_ID,
+                    message_thread_id=WTS_TOPIC,
+                    text=caption,
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                    ])
+                )
+
+            else:
+
+                caption = vendor_template(
+                    "WTS",
+                    f"@{username}",
+                    content,
+                    vendor_data,
+                    city,
+                    options
+                )
+
+                await context.bot.send_photo(
+                    chat_id=GROUP_ID,
+                    message_thread_id=WTS_TOPIC,
+                    photo=LOGO_URL,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                    ])
+                )
+
+        # ================= WTB =================
+        elif post_type == "WTB":
+
+            masked_content = smart_mask_caps(context.user_data.get("content"))
+
+            caption = (
+                "🛒 <b>WTB MARKET</b>\n\n"
+                f"👤 <b>@{username}</b>\n"
+                f"📍 <b>{city} | #3CITY</b>\n\n"
+                "<code>───────────────</code>\n"
+                f"<b>{masked_content}</b>\n"
+                "<code>───────────────</code>"
+            )
+
             await context.bot.send_photo(
                 chat_id=GROUP_ID,
-                message_thread_id=WTS_TOPIC,
-                photo=VIP_LOGO_URL
-            )
-
-            await context.bot.send_message(
-                chat_id=GROUP_ID,
-                message_thread_id=WTS_TOPIC,
-                text=caption,
-                parse_mode="HTML",
-                reply_markup=reply_markup
-            )
-
-        # ===== NORMAL VENDOR =====
-        else:
-
-            caption = vendor_template(
-                "WTS",
-                f"@{username}",
-                content,
-                vendor_data,
-                city,
-                options
-            )
-
-            reply_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-            ])
-
-            await context.bot.send_photo(
-                chat_id=GROUP_ID,
-                message_thread_id=WTS_TOPIC,
+                message_thread_id=WTB_TOPIC,
                 photo=LOGO_URL,
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=reply_markup
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                ])
             )
-            
-    # ================= WTB =================
-    elif post_type == "WTB":
 
-        raw_content = context.user_data.get("content")
-        masked_content = smart_mask_caps(raw_content)
+        # ================= WTT =================
+        elif post_type == "WTT":
 
-        caption = (
-            "🛒 <b>WTB MARKET</b>\n\n"
-            f"👤 <b>@{username}</b>\n"
-            f"📍 <b>{city} | #3CITY</b>\n\n"
-            "<code>───────────────</code>\n"
-            f"<b>{masked_content}</b>\n"
-            "<code>───────────────</code>"
-        )
+            masked_content = smart_mask_caps(context.user_data.get("content"))
 
-        topic = WTB_TOPIC
+            caption = (
+                "🔁 <b>WTT MARKET</b>\n\n"
+                f"👤 <b>@{username}</b>\n"
+                f"📍 <b>{city} | #3CITY</b>\n\n"
+                "<code>───────────────</code>\n"
+                f"<b>{masked_content}</b>\n"
+                "<code>───────────────</code>"
+            )
+
+            await context.bot.send_photo(
+                chat_id=GROUP_ID,
+                message_thread_id=WTT_TOPIC,
+                photo=LOGO_URL,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                ])
+            )
+
+        else:
+            return
+
+        if "wts_products" in context.user_data:
+            last_ads[user.id] = {
+                "products": list(context.user_data.get("wts_products", [])),
+                "city": context.user_data.get("city"),
+                "options": list(context.user_data.get("options", [])),
+                "shop_link": context.user_data.get("shop_link"),
+                "legit_link": context.user_data.get("legit_link")
+            }
+
+            set_last_post(user.id)
+            increment_posts(username)
+
+        context.user_data.clear()
+
+        await user.send_message("<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>", parse_mode="HTML")
+
+    finally:
+        active_publications.discard(user.id)
         
-    # ================= WTT =================
-    elif post_type == "WTT":
-
-        raw_content = context.user_data.get("content")
-        masked_content = smart_mask_caps(raw_content)
-
-        caption = (
-            "🔁 <b>WTT MARKET</b>\n\n"
-            f"👤 <b>@{username}</b>\n"
-            f"📍 <b>{city} | #3CITY</b>\n\n"
-            "<code>───────────────</code>\n"
-            f"<b>{masked_content}</b>\n"
-            "<code>───────────────</code>"
-        )
-
-        topic = WTT_TOPIC
-
-    else:
-        return
-
-    reply_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-    ])
-
-    if post_type in ["WTB", "WTT"]:
-
-        await context.bot.send_photo(
-            chat_id=GROUP_ID,
-            message_thread_id=topic,
-            photo=LOGO_URL,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-
-    # zapis FAST POST + cooldown tylko dla WTS
-    if "wts_products" in context.user_data:
-
-        last_ads[user.id] = {
-            "products": list(context.user_data.get("wts_products", [])),
-            "city": context.user_data.get("city"),
-            "options": list(context.user_data.get("options", [])),
-            "shop_link": context.user_data.get("shop_link"),
-            "legit_link": context.user_data.get("legit_link")
-        }
-
-        set_last_post(user.id)
-        increment_posts(username)
-
-    context.user_data.clear()
-
-    keyboard = [[
-        InlineKeyboardButton("🛒 WTB", callback_data="WTB"),
-        InlineKeyboardButton("💼 WTS", callback_data="WTS"),
-        InlineKeyboardButton("🔁 WTT", callback_data="WTT"),
-    ]]
-
-    if is_vip_vendor(username):
-        keyboard.append([InlineKeyboardButton("💎 VIP VENDOR", callback_data="VIP_PANEL")])
-
-    await user.send_message(
-        "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>\n\n<b>WRACAMY DO MENU:</b>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
     
 # ================= MAIN =================
 def main():
@@ -1590,6 +1637,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
