@@ -1474,10 +1474,9 @@ async def finalize_publish(update, context):
                 content_lines.append(f"{get_product_emoji(p)} {smart_mask_caps(p)}")
 
             content = "\n".join(content_lines)
-
             vendor_data = get_vendor(username)
 
-            # ================= VIP =================
+            # ================= VIP WYGLĄD (ALE NIE VIP TOPIC) =================
             if vendor_data and int(vendor_data[5]) == 1:
 
                 caption = vip_template(
@@ -1490,10 +1489,10 @@ async def finalize_publish(update, context):
                     legit_link=context.user_data.get("legit_link")
                 )
 
-                topic_id = VIP_TOPIC
                 photo_url = VIP_LOGO_URL
+                topic_id = WTS_TOPIC
 
-            # ================= NORMAL VENDOR (jak screen 3) =================
+            # ================= NORMAL VENDOR =================
             else:
 
                 since = vendor_data[1] if vendor_data else "-"
@@ -1516,8 +1515,9 @@ async def finalize_publish(update, context):
                     "⚡ <b>OFFICIAL MARKETPLACE</b>"
                 )
 
-                topic_id = WTS_TOPIC
                 photo_url = LOGO_URL
+                topic_id = WTS_TOPIC
+
         # ================= WTB =================
         elif post_type == "WTB":
 
@@ -1638,6 +1638,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
