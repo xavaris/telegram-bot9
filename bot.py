@@ -1417,7 +1417,11 @@ async def finalize_publish(update, context):
 
     user = update.effective_user
 
+    if not user:
+        return
+
     if not user.username:
+        await user.send_message("❌ Musisz mieć ustawiony @username.")
         return
 
     username = user.username.lower()
@@ -1428,6 +1432,8 @@ async def finalize_publish(update, context):
     active_publications.add(user.id)
 
     try:
+        print("=== FINALIZE START ===")
+
         city_map = {
             "CITY_GDY": "#GDY",
             "CITY_GDA": "#GDA",
@@ -1440,77 +1446,51 @@ async def finalize_publish(update, context):
             "OPT_H2H": "#H2H"
         }
 
-        city = city_map.get(context.user_data.get("city"), "#BRAK")
+        city_key = context.user_data.get("city")
+        city = city_map.get(city_key)
+
         options_raw = context.user_data.get("options", [])
         options = [option_map[o] for o in options_raw if o in option_map]
 
-        vendor_data = get_vendor(username)
         post_type = context.user_data.get("type")
+
+        print("POST TYPE:", post_type)
+        print("CITY:", city)
+        print("OPTIONS:", options)
+
+        if not city:
+            await user.send_message("❌ Nie wybrano miasta.")
+            return
+
+        option_text = ""
+        if options:
+            option_text = " | " + " | ".join(options)
 
         # ================= WTS =================
         if "wts_products" in context.user_data:
 
-            shop_link = context.user_data.get("shop_link")
-            legit_link = context.user_data.get("legit_link")
+            content_lines = []
+            for p in context.user_data.get("wts_products", []):
+                content_lines.append(f"{get_product_emoji(p)} {smart_mask_caps(p)}")
 
-            content = "\n".join(
-                f"{get_product_emoji(p)} {smart_mask_caps(p)}"
-                for p in context.user_data.get("wts_products", [])
+            content = "\n".join(content_lines)
+
+            caption = (
+                "💼 <b>WTS MARKET</b>\n\n"
+                f"👤 <b>@{username}</b>\n"
+                f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
+                "<code>───────────────</code>\n"
+                f"{content}\n"
+                "<code>───────────────</code>"
             )
 
-            if is_vip_vendor(username):
-
-                caption = vip_template(
-                    username,
-                    content,
-                    vendor_data,
-                    city,
-                    options,
-                    shop_link,
-                    legit_link
-                )
-
-                await context.bot.send_photo(
-                    chat_id=GROUP_ID,
-                    message_thread_id=WTS_TOPIC,
-                    photo=VIP_LOGO_URL,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-                    ])
-                )
-
-            else:
-
-                caption = vendor_template(
-                    "WTS",
-                    f"@{username}",
-                    content,
-                    vendor_data,
-                    city,
-                    options
-                )
-
-                await context.bot.send_photo(
-                    chat_id=GROUP_ID,
-                    message_thread_id=WTS_TOPIC,
-                    photo=LOGO_URL,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-                    ])
-                )
+            topic_id = WTS_TOPIC
+            photo_url = LOGO_URL
 
         # ================= WTB =================
         elif post_type == "WTB":
 
-            masked_content = smart_mask_caps(context.user_data.get("content"))
-
-            option_text = ""
-            if options:
-                option_text = " | " + " | ".join(options)
+            masked_content = smart_mask_caps(context.user_data.get("content", ""))
 
             caption = (
                 "🛒 <b>WTB MARKET</b>\n\n"
@@ -1521,26 +1501,13 @@ async def finalize_publish(update, context):
                 "<code>───────────────</code>"
             )
 
-            await context.bot.send_photo(
-                chat_id=GROUP_ID,
-                message_thread_id=WTB_TOPIC,
-                photo=LOGO_URL,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-                ])
-            )
+            topic_id = WTB_TOPIC
+            photo_url = LOGO_URL
 
-        # ================= WTT =================
         # ================= WTT =================
         elif post_type == "WTT":
 
-            masked_content = smart_mask_caps(context.user_data.get("content"))
-
-            option_text = ""
-            if options:
-                option_text = " | " + " | ".join(options)
+            masked_content = smart_mask_caps(context.user_data.get("content", ""))
 
             caption = (
                 "🔁 <b>WTT MARKET</b>\n\n"
@@ -1551,28 +1518,46 @@ async def finalize_publish(update, context):
                 "<code>───────────────</code>"
             )
 
-            await context.bot.send_photo(
-                chat_id=GROUP_ID,
-                message_thread_id=WTT_TOPIC,
-                photo=LOGO_URL,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-                ])
-            )
-            
+            topic_id = WTT_TOPIC
+            photo_url = LOGO_URL
 
         else:
+            await user.send_message("❌ Nieznany typ ogłoszenia.")
+            print("ERROR: post_type =", post_type)
             return
 
+        # ===== WALIDACJA ENV =====
+        if not GROUP_ID:
+            await user.send_message("❌ GROUP_ID nie ustawione.")
+            return
+
+        if not topic_id:
+            await user.send_message("❌ Topic ID nie ustawione (WTT/WTS/WTB).")
+            return
+
+        if not photo_url:
+            await user.send_message("❌ LOGO_URL nie ustawione.")
+            return
+
+        print("WYSYŁAM DO TOPIC:", topic_id)
+
+        await context.bot.send_photo(
+            chat_id=GROUP_ID,
+            message_thread_id=topic_id,
+            photo=photo_url,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+            ])
+        )
+
+        # zapis tylko dla WTS
         if "wts_products" in context.user_data:
             last_ads[user.id] = {
                 "products": list(context.user_data.get("wts_products", [])),
                 "city": context.user_data.get("city"),
                 "options": list(context.user_data.get("options", [])),
-                "shop_link": context.user_data.get("shop_link"),
-                "legit_link": context.user_data.get("legit_link")
             }
 
             set_last_post(user.id)
@@ -1581,6 +1566,13 @@ async def finalize_publish(update, context):
         context.user_data.clear()
 
         await user.send_message("<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>", parse_mode="HTML")
+
+        print("=== FINALIZE SUCCESS ===")
+
+    except Exception as e:
+        print("=== FINALIZE ERROR ===")
+        print(e)
+        await user.send_message(f"❌ Błąd publikacji:\n{e}")
 
     finally:
         active_publications.discard(user.id)
@@ -1615,6 +1607,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
