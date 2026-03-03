@@ -1475,18 +1475,49 @@ async def finalize_publish(update, context):
 
             content = "\n".join(content_lines)
 
-            caption = (
-                "💼 <b>WTS MARKET</b>\n\n"
-                f"👤 <b>@{username}</b>\n"
-                f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-                "<code>───────────────</code>\n"
-                f"{content}\n"
-                "<code>───────────────</code>"
-            )
+            vendor_data = get_vendor(username)
 
-            topic_id = WTS_TOPIC
-            photo_url = LOGO_URL
+            # ================= VIP =================
+            if vendor_data and int(vendor_data[5]) == 1:
 
+                caption = vip_template(
+                    username=username,
+                    content=content,
+                    vendor_data=vendor_data,
+                    city=city,
+                    options=options,
+                    shop_link=context.user_data.get("shop_link"),
+                    legit_link=context.user_data.get("legit_link")
+                )
+
+                topic_id = VIP_TOPIC
+                photo_url = VIP_LOGO_URL
+
+            # ================= NORMAL VENDOR (jak screen 3) =================
+            else:
+
+                since = vendor_data[1] if vendor_data else "-"
+                posts = vendor_data[4] if vendor_data else 0
+
+                caption = (
+                    "💎 <b>WTS MARKET</b> 💎\n\n"
+
+                    "📜 <b>VERIFIED VENDOR</b>\n"
+                    f"📅 <b>OD:</b> {since}\n"
+                    f"📊 <b>OGŁOSZEŃ:</b> {posts}\n\n"
+
+                    f"👤 <b>@{username}</b>\n"
+                    f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
+
+                    "<code>──────────────────</code>\n"
+                    f"{content}\n"
+                    "<code>──────────────────</code>\n\n"
+
+                    "⚡ <b>OFFICIAL MARKETPLACE</b>"
+                )
+
+                topic_id = WTS_TOPIC
+                photo_url = LOGO_URL
         # ================= WTB =================
         elif post_type == "WTB":
 
@@ -1607,6 +1638,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
