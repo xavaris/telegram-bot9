@@ -29,6 +29,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID"))
 LOGO_URL = os.getenv("LOGO_URL")
 VIP_LOGO_URL = os.getenv("VIP_LOGO_URL")
 BOT_USERNAME = os.getenv("BOT_USERNAME")
+VIP_GIF_URL = os.getenv("VIP_GIF_URL")
 
 # ================= FAST POST MEMORY (DODANE) =================
 last_ads = {}
@@ -520,15 +521,14 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
-    with open("vips.gif", "rb") as gif_file:
-        await context.bot.send_animation(
-            chat_id=GROUP_ID,
-            message_thread_id=VIP_TOPIC,
-            animation=gif_file,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
+    await context.bot.send_animation(
+        chat_id=GROUP_ID,
+        message_thread_id=VIP_TOPIC,
+        animation=VIP_GIF_URL,
+        caption=caption,
+        parse_mode="HTML",
+        reply_markup=reply_markup
+    )
     
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -820,8 +820,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if query.data == "VIP_SKIP_LEGIT":
             context.user_data.pop("awaiting_legit", None)
             await finalize_publish(update, context)
+        
+            await query.edit_message_text(
+                "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
+                parse_mode="HTML"
+            )
             return
-    
+            
         # ================= VIP PANEL =================
         if query.data == "VIP_PANEL":
             await vip_panel(update, context)
@@ -913,10 +918,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
                 ])
 
-                await context.bot.send_photo(
+                await context.bot.send_animation(
                     chat_id=GROUP_ID,
                     message_thread_id=VIP_TOPIC,
-                    photo=VIP_LOGO_URL,
+                    animation=VIP_GIF_URL,
                     caption=caption,
                     parse_mode="HTML",
                     reply_markup=reply_markup
@@ -1009,24 +1014,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
         # ================= FAST POST =================
         if query.data == "FAST_POST":
-    
+        
             if time.time() - get_last_post(user.id) < 6 * 60 * 60:
                 await query.answer("COOLDOWN 6H.", show_alert=True)
                 return
-    
+        
             data = last_ads.get(user.id)
-    
+        
             if not data:
-                await query.edit_message_text("<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>", parse_mode="HTML")
+                await query.edit_message_text(
+                    "<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>",
+                    parse_mode="HTML"
+                )
                 return
-    
+        
             context.user_data["wts_products"] = data["products"]
             context.user_data["city"] = data["city"]
             context.user_data["options"] = data["options"]
             context.user_data["shop_link"] = data.get("shop_link")
             context.user_data["legit_link"] = data.get("legit_link")
-    
+        
             await finalize_publish(update, context)
+        
+            await query.answer("✅ OGŁOSZENIE OPUBLIKOWANE", show_alert=True)
             return
     
         # ================= NOWE WTS =================
@@ -1287,20 +1297,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ================= VIP LEGIT LINK =================
     if context.user_data.get("awaiting_legit"):
         link = text.strip()
-
+    
         if not link.startswith("https://t.me/"):
             await update.message.reply_text(
                 "<b>❌ Link musi być do grupy Telegram (https://t.me/...)</b>",
                 parse_mode="HTML"
             )
             return
-
+    
         context.user_data["legit_link"] = link
         context.user_data.pop("awaiting_legit")
-
+    
         await finalize_publish(update, context)
+    
+        await update.message.reply_text(
+            "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
+            parse_mode="HTML"
+        )
         return
-
     # ================= WTS PRODUCTS =================
     if "wts_total" in context.user_data:
 
@@ -1430,6 +1444,7 @@ async def ask_product_count(query):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 # ================= FINALIZE PUBLISH =================
+# ================= FINALIZE PUBLISH =================
 async def finalize_publish(update, context):
 
     user = update.effective_user
@@ -1469,7 +1484,7 @@ async def finalize_publish(update, context):
         options_raw = context.user_data.get("options", [])
         options = [option_map[o] for o in options_raw if o in option_map]
 
-        post_type = context.user_data.get("type")
+        post_type = context.user_data.pop("type", None)
 
         print("POST TYPE:", post_type)
         print("CITY:", city)
@@ -1493,8 +1508,12 @@ async def finalize_publish(update, context):
             content = "\n".join(content_lines)
             vendor_data = get_vendor(username)
 
-            # ================= VIP WYGLĄD (ALE NIE VIP TOPIC) =================
+            # ===== VIP =====
             if vendor_data and int(vendor_data[5]) == 1:
+
+                if not VIP_GIF_URL:
+                    await user.send_message("❌ VIP_GIF_URL nie ustawione w ENV.")
+                    return
 
                 caption = vip_template(
                     username=username,
@@ -1506,26 +1525,18 @@ async def finalize_publish(update, context):
                     legit_link=context.user_data.get("legit_link")
                 )
 
-                topic_id = WTS_TOPIC
+                await context.bot.send_animation(
+                    chat_id=GROUP_ID,
+                    message_thread_id=WTS_TOPIC,
+                    animation=VIP_GIF_URL,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                    ])
+                )
 
-                with open("vips.gif", "rb") as gif_file:
-                    await context.bot.send_animation(
-                        chat_id=GROUP_ID,
-                        message_thread_id=topic_id,
-                        animation=gif_file,
-                        caption=caption,
-                        parse_mode="HTML",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-                        ])
-                    )
-
-                set_last_post(user.id)
-                increment_posts(username)
-                context.user_data.clear()
-                return
-
-            # ================= NORMAL VENDOR =================
+            # ===== NORMAL =====
             else:
 
                 since = vendor_data[1] if vendor_data else "-"
@@ -1533,23 +1544,39 @@ async def finalize_publish(update, context):
 
                 caption = (
                     "💎 <b>WTS MARKET</b> 💎\n\n"
-
                     "📜 <b>VERIFIED VENDOR</b>\n"
                     f"📅 <b>OD:</b> {since}\n"
                     f"📊 <b>OGŁOSZEŃ:</b> {posts}\n\n"
-
                     f"👤 <b>@{username}</b>\n"
                     f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-
                     "<code>──────────────────</code>\n"
                     f"{content}\n"
                     "<code>──────────────────</code>\n\n"
-
                     "⚡ <b>OFFICIAL MARKETPLACE</b>"
                 )
 
-                photo_url = LOGO_URL
-                topic_id = WTS_TOPIC
+                await context.bot.send_photo(
+                    chat_id=GROUP_ID,
+                    message_thread_id=WTS_TOPIC,
+                    photo=LOGO_URL,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                    ])
+                )
+
+            # ===== ZAPIS WTS (VIP + NORMAL) =====
+            last_ads[user.id] = {
+                "products": list(context.user_data.get("wts_products", [])),
+                "city": context.user_data.get("city"),
+                "options": list(context.user_data.get("options", [])),
+                "shop_link": context.user_data.get("shop_link"),
+                "legit_link": context.user_data.get("legit_link"),
+            }
+
+            set_last_post(user.id)
+            increment_posts(username)
 
         # ================= WTB =================
         elif post_type == "WTB":
@@ -1565,8 +1592,13 @@ async def finalize_publish(update, context):
                 "<code>───────────────</code>"
             )
 
-            topic_id = WTB_TOPIC
-            photo_url = LOGO_URL
+            await context.bot.send_photo(
+                chat_id=GROUP_ID,
+                message_thread_id=WTB_TOPIC,
+                photo=LOGO_URL,
+                caption=caption,
+                parse_mode="HTML"
+            )
 
         # ================= WTT =================
         elif post_type == "WTT":
@@ -1582,54 +1614,20 @@ async def finalize_publish(update, context):
                 "<code>───────────────</code>"
             )
 
-            topic_id = WTT_TOPIC
-            photo_url = LOGO_URL
+            await context.bot.send_photo(
+                chat_id=GROUP_ID,
+                message_thread_id=WTT_TOPIC,
+                photo=LOGO_URL,
+                caption=caption,
+                parse_mode="HTML"
+            )
 
         else:
             await user.send_message("❌ Nieznany typ ogłoszenia.")
             print("ERROR: post_type =", post_type)
             return
 
-        # ===== WALIDACJA ENV =====
-        if not GROUP_ID:
-            await user.send_message("❌ GROUP_ID nie ustawione.")
-            return
-
-        if not topic_id:
-            await user.send_message("❌ Topic ID nie ustawione (WTT/WTS/WTB).")
-            return
-
-        if not photo_url:
-            await user.send_message("❌ LOGO_URL nie ustawione.")
-            return
-
-        print("WYSYŁAM DO TOPIC:", topic_id)
-
-        await context.bot.send_photo(
-            chat_id=GROUP_ID,
-            message_thread_id=topic_id,
-            photo=photo_url,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
-            ])
-        )
-
-        # zapis tylko dla WTS
-        if "wts_products" in context.user_data:
-            last_ads[user.id] = {
-                "products": list(context.user_data.get("wts_products", [])),
-                "city": context.user_data.get("city"),
-                "options": list(context.user_data.get("options", [])),
-            }
-
-            set_last_post(user.id)
-            increment_posts(username)
-
         context.user_data.clear()
-
-
         print("=== FINALIZE SUCCESS ===")
 
     except Exception as e:
@@ -1670,6 +1668,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
