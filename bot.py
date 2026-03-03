@@ -41,7 +41,8 @@ active_publications = set()
 active_vip_auto = set()
 
 # ================= DATABASE =================
-conn = sqlite3.connect("market.db", check_same_thread=False)
+DB_PATH = os.getenv("DB_PATH", "/data/market.db")
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -354,32 +355,6 @@ def clear_all_cooldowns():
     cursor.execute("DELETE FROM cooldowns")
     conn.commit()
     
-    # ================= PREMIUM TEMPLATE =================
-# ================= VENDOR TEMPLATE =================
-def vendor_template(title, username, content, vendor_data, city, options):
-
-    badge = ""
-    if vendor_data:
-        badge = (
-            "🏷 <b>VERIFIED VENDOR</b>\n"
-            f"🗓 <b>OD:</b> {vendor_data[1]}\n"
-            f"📊 <b>OGŁOSZEŃ:</b> {vendor_data[4]}\n\n"
-        )
-
-    option_text = ""
-    if options:
-        option_text = " | " + " | ".join(options)
-
-    return (
-        f"💎 <b>{title} MARKET</b> 💎\n\n"
-        f"{badge}"
-        f"👤 <b>{username}</b>\n"
-        f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-        "<code>───────────────</code>\n"
-        f"<b>{content}</b>\n"
-        "<code>───────────────</code>\n\n"
-        "⚡ <b>OFFICIAL MARKETPLACE</b>"
-    )
 
 
 # ================= SUPER VIP TEMPLATE =================
@@ -535,18 +510,11 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
-    # 🔥 JEDNO LOGO NAD POSTEM
     await context.bot.send_photo(
         chat_id=GROUP_ID,
         message_thread_id=VIP_TOPIC,
-        photo=VIP_LOGO_URL
-    )
-
-    # 🔥 POST
-    await context.bot.send_message(
-        chat_id=GROUP_ID,
-        message_thread_id=VIP_TOPIC,
-        text=caption,
+        photo=VIP_LOGO_URL,
+        caption=caption,
         parse_mode="HTML",
         reply_markup=reply_markup
     )
@@ -937,13 +905,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_photo(
                     chat_id=GROUP_ID,
                     message_thread_id=VIP_TOPIC,
-                    photo=VIP_LOGO_URL
-                )
-
-                await context.bot.send_message(
-                    chat_id=GROUP_ID,
-                    message_thread_id=VIP_TOPIC,
-                    text=caption,
+                    photo=VIP_LOGO_URL,
+                    caption=caption,
                     parse_mode="HTML",
                     reply_markup=reply_markup
                 )
@@ -1426,11 +1389,16 @@ async def ask_product_count(query):
         [
             InlineKeyboardButton("1", callback_data="CNT_1"),
             InlineKeyboardButton("2", callback_data="CNT_2"),
-            InlineKeyboardButton("3", callback_data="CNT_3")
+            InlineKeyboardButton("3", callback_data="CNT_3"),
+            InlineKeyboardButton("4", callback_data="CNT_4"),
+            InlineKeyboardButton("5", callback_data="CNT_5"),
         ],
         [
-            InlineKeyboardButton("4", callback_data="CNT_4"),
-            InlineKeyboardButton("5", callback_data="CNT_5")
+            InlineKeyboardButton("6", callback_data="CNT_6"),
+            InlineKeyboardButton("7", callback_data="CNT_7"),
+            InlineKeyboardButton("8", callback_data="CNT_8"),
+            InlineKeyboardButton("9", callback_data="CNT_9"),
+            InlineKeyboardButton("10", callback_data="CNT_10"),
         ]
     ]
 
@@ -1467,7 +1435,7 @@ async def finalize_publish(update, context):
             "OPT_H2H": "#H2H"
         }
 
-        city = city_map.get(context.user_data.get("city"))
+        city = city_map.get(context.user_data.get("city"), "#BRAK")
         options_raw = context.user_data.get("options", [])
         options = [option_map[o] for o in options_raw if o in option_map]
 
@@ -1500,13 +1468,8 @@ async def finalize_publish(update, context):
                 await context.bot.send_photo(
                     chat_id=GROUP_ID,
                     message_thread_id=WTS_TOPIC,
-                    photo=VIP_LOGO_URL
-                )
-
-                await context.bot.send_message(
-                    chat_id=GROUP_ID,
-                    message_thread_id=WTS_TOPIC,
-                    text=caption,
+                    photo=VIP_LOGO_URL,
+                    caption=caption,
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
@@ -1540,10 +1503,14 @@ async def finalize_publish(update, context):
 
             masked_content = smart_mask_caps(context.user_data.get("content"))
 
+            option_text = ""
+            if options:
+                option_text = " | " + " | ".join(options)
+
             caption = (
                 "🛒 <b>WTB MARKET</b>\n\n"
                 f"👤 <b>@{username}</b>\n"
-                f"📍 <b>{city} | #3CITY</b>\n\n"
+                f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
                 "<code>───────────────</code>\n"
                 f"<b>{masked_content}</b>\n"
                 "<code>───────────────</code>"
@@ -1561,14 +1528,19 @@ async def finalize_publish(update, context):
             )
 
         # ================= WTT =================
+        # ================= WTT =================
         elif post_type == "WTT":
 
             masked_content = smart_mask_caps(context.user_data.get("content"))
 
+            option_text = ""
+            if options:
+                option_text = " | " + " | ".join(options)
+
             caption = (
                 "🔁 <b>WTT MARKET</b>\n\n"
                 f"👤 <b>@{username}</b>\n"
-                f"📍 <b>{city} | #3CITY</b>\n\n"
+                f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
                 "<code>───────────────</code>\n"
                 f"<b>{masked_content}</b>\n"
                 "<code>───────────────</code>"
@@ -1584,6 +1556,7 @@ async def finalize_publish(update, context):
                     [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
                 ])
             )
+            
 
         else:
             return
@@ -1637,6 +1610,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
