@@ -42,6 +42,11 @@ active_vip_auto = set()
 
 # ================= DATABASE =================
 DB_PATH = os.getenv("DB_PATH", "/data/market.db")
+
+db_dir = os.path.dirname(DB_PATH)
+if db_dir and not os.path.exists(db_dir):
+    os.makedirs(db_dir, exist_ok=True)
+
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
@@ -1610,6 +1615,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
