@@ -155,7 +155,7 @@ def get_product_emoji(name: str) -> str:
             "kryx", "krysztal", "kryształ",
             "crystal", "ice",
             "mefedron", "mefa", "mef", "kamien", "kamień", "bezwonny",
-            "m3ff", "ewa", "krix"
+            "m3ff", "ewa"
         ],
 
         "❄️": [
@@ -181,7 +181,7 @@ def get_product_emoji(name: str) -> str:
             "xanax", "alpra", "alprazolam",
             "clonazepam", "rivotril", "diazepam",
             "tabs", "tabsy", "tabletki",
-            "pigula", "piguły", "pigułki", "xani", "xanii", "xanni"
+            "pigula", "piguły", "pigułki", "xani", "xanii"
         ],
 
         "💨": [
@@ -388,8 +388,8 @@ def vip_template(username, content, vendor_data, city, options, shop_link=None, 
             links_block += f'🛡 <b><a href="{legit_link}">GRUPA WERYFIKACYJNA</a></b>\n'
 
     return (
-        "👑 <b>VIP VENDOR COLLECTION</b> 👑\n"
-        "━━━━━━━━━━━━━━━\n\n"
+        "✨👑 <b>VIP VENDOR ELITE</b> 👑✨\n"
+        "━━━━━━━━━━━━\n\n"
 
         "🏛 <b>EXCLUSIVE VERIFIED SELLER</b>\n"
         f"🗓 <b>Member since:</b> {vendor_data[1]}\n"
@@ -399,9 +399,9 @@ def vip_template(username, content, vendor_data, city, options, shop_link=None, 
         f"📍 <b>{city}{option_text} | #3CITY</b>\n"
         f"{links_block}\n"
 
-        "━━━━━━━━━━━━━━━\n"
+        "━━━━━━━━━━━━\n"
         f"{content}\n"
-        "━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━\n\n"
 
         "💫 <b>Premium Quality</b>\n"
         "⚜️ <b>Discretion • Reputation • Prestige</b>"
@@ -1604,7 +1604,10 @@ async def finalize_publish(update, context):
                 message_thread_id=WTB_TOPIC,
                 photo=LOGO_URL,
                 caption=caption,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                ])
             )
 
         # ================= WTT =================
@@ -1626,7 +1629,10 @@ async def finalize_publish(update, context):
                 message_thread_id=WTT_TOPIC,
                 photo=LOGO_URL,
                 caption=caption,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                ])
             )
 
         else:
@@ -1675,8 +1681,6 @@ def main():
 if __name__ == "__main__":
     main()
     
-
-
 
 
 
