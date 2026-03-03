@@ -490,6 +490,7 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
     }
 
     city = city_map.get(ad_data.get("city"))
+
     options = [
         option_map[o]
         for o in ad_data.get("options", [])
@@ -515,14 +516,15 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📩 KONTAKT Z VENDOREM", url=f"https://t.me/{username}")]
     ])
 
-    await context.bot.send_photo(
-        chat_id=GROUP_ID,
-        message_thread_id=VIP_TOPIC,
-        photo=VIP_LOGO_URL,
-        caption=caption,
-        parse_mode="HTML",
-        reply_markup=reply_markup
-    )
+    with open("vips.gif", "rb") as gif_file:
+        await context.bot.send_animation(
+            chat_id=GROUP_ID,
+            message_thread_id=VIP_TOPIC,
+            animation=gif_file,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
     
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1500,8 +1502,24 @@ async def finalize_publish(update, context):
                     legit_link=context.user_data.get("legit_link")
                 )
 
-                photo_url = VIP_LOGO_URL
                 topic_id = WTS_TOPIC
+
+                with open("vips.gif", "rb") as gif_file:
+                    await context.bot.send_animation(
+                        chat_id=GROUP_ID,
+                        message_thread_id=topic_id,
+                        animation=gif_file,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                        ])
+                    )
+
+                set_last_post(user.id)
+                increment_posts(username)
+                context.user_data.clear()
+                return
 
             # ================= NORMAL VENDOR =================
             else:
@@ -1607,7 +1625,6 @@ async def finalize_publish(update, context):
 
         context.user_data.clear()
 
-        await user.send_message("<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>", parse_mode="HTML")
 
         print("=== FINALIZE SUCCESS ===")
 
@@ -1649,6 +1666,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
