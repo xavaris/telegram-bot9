@@ -1013,29 +1013,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
     
         # ================= FAST POST =================
+        # ================= FAST POST =================
         if query.data == "FAST_POST":
-        
+
             if time.time() - get_last_post(user.id) < 6 * 60 * 60:
                 await query.answer("COOLDOWN 6H.", show_alert=True)
                 return
-        
+
             data = last_ads.get(user.id)
-        
+
             if not data:
                 await query.edit_message_text(
                     "<b>BRAK ZAPISANEGO OGŁOSZENIA.</b>",
                     parse_mode="HTML"
                 )
                 return
-        
-            context.user_data["wts_products"] = data["products"]
-            context.user_data["city"] = data["city"]
-            context.user_data["options"] = data["options"]
+
+            # 🔥 ODBUDOWUJEMY PEŁEN STAN WTS
+            context.user_data["type"] = "WTS"
+            context.user_data["wts_products"] = list(data.get("products", []))
+            context.user_data["city"] = data.get("city")
+            context.user_data["options"] = list(data.get("options", []))
             context.user_data["shop_link"] = data.get("shop_link")
             context.user_data["legit_link"] = data.get("legit_link")
-        
+
             await finalize_publish(update, context)
-        
+
             await query.answer("✅ OGŁOSZENIE OPUBLIKOWANE", show_alert=True)
             return
     
@@ -1668,6 +1671,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
