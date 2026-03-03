@@ -1038,8 +1038,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["legit_link"] = data.get("legit_link")
 
             await finalize_publish(update, context)
-
-            await query.answer("✅ OGŁOSZENIE OPUBLIKOWANE", show_alert=True)
+    
+            await query.edit_message_text(
+                "<b>✅ OGŁOSZENIE OPUBLIKOWANE</b>",
+                parse_mode="HTML"
+            )
+    
             return
     
         # ================= NOWE WTS =================
@@ -1671,6 +1675,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
