@@ -119,6 +119,7 @@ def normalize_text(text: str) -> str:
     return text
 
 # ================= ULTRA PRODUCT DETECTION =================
+# ================= ULTRA PRODUCT DETECTION =================
 
 def get_product_emoji(name: str) -> str:
     normalized = normalize_text(name)
@@ -145,7 +146,7 @@ def get_product_emoji(name: str) -> str:
             "pix", "pixy", "piksy", "piksi",
             "eksta", "exta", "extasy", "ecstasy",
             "mitsubishi", "lego", "superman", "rolls",
-            "pharaoh", "tesla", "bluepunisher"
+            "pharaoh", "tesla", "bluepunisher", "cukierki"
         ],
 
         "💎": [
@@ -161,7 +162,9 @@ def get_product_emoji(name: str) -> str:
             "koperta", "coke", "cocaina", "kokaina",
             "biała", "biala", "biały", "bialy",
             "sniff", "kreska", "kreski", "cocos",
-            "cocoos"
+            "cocoos", "koper", "k0k0", "c0c0", "k0per",
+            "chrzan", 
+            
         ],
 
         "🌿": [
@@ -218,6 +221,7 @@ def get_product_emoji(name: str) -> str:
                 return emoji
 
     return "📦"
+    
     
 # ================= ULTRA HARDCORE PRICE DETECTOR V3 =================
 def contains_price_hardcore(text: str) -> bool:
@@ -1666,6 +1670,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
