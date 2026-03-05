@@ -33,9 +33,6 @@ VIP_GIF_URL = os.getenv("VIP_GIF_URL")
 
 # ================= FAST POST MEMORY (DODANE) =================
 last_ads = {}
-# ================= INTEREST SYSTEM =================
-post_interests = {}
-post_users = {}
 # ================= GLOBAL CALLBACK LOCK =================
 active_callbacks = set()
 
@@ -84,7 +81,23 @@ CREATE TABLE IF NOT EXISTS cooldowns (
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS interests (
+    message_id INTEGER,
+    user_id INTEGER,
+    PRIMARY KEY(message_id, user_id)
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS interest_counts (
+    message_id INTEGER PRIMARY KEY,
+    count INTEGER DEFAULT 0
+)
+""")
+
 conn.commit()
+
 # ================= LEET MAP =================
 CHAR_MAP = {
     "a": "@",
@@ -306,9 +319,59 @@ def contains_price_hardcore(text: str) -> bool:
     return False
 
 # ================= DB HELPERS =================
+def add_interest(message_id, user_id):
+
+    cursor.execute(
+        "SELECT 1 FROM interests WHERE message_id=? AND user_id=?",
+        (message_id, user_id)
+    )
+
+    if cursor.fetchone():
+        return False
+
+    cursor.execute(
+        "INSERT INTO interests(message_id,user_id) VALUES(?,?)",
+        (message_id, user_id)
+    )
+
+    cursor.execute(
+        """
+        INSERT INTO interest_counts(message_id,count)
+        VALUES(?,1)
+        ON CONFLICT(message_id)
+        DO UPDATE SET count=count+1
+        """,
+        (message_id,)
+    )
+
+    conn.commit()
+    return True
+
+
+def get_interest_count(message_id):
+
+    cursor.execute(
+        "SELECT count FROM interest_counts WHERE message_id=?",
+        (message_id,)
+    )
+
+    row = cursor.fetchone()
+
+    return row[0] if row else 0
+
+
+def has_user_interested(message_id, user_id):
+
+    cursor.execute(
+        "SELECT 1 FROM interests WHERE message_id=? AND user_id=?",
+        (message_id, user_id)
+    )
+
+    return cursor.fetchone() is not None
+    
 def get_vendor(username):
     cursor.execute(
-        "SELECT username, added_at, city, options, posts, vip FROM vendors WHERE username=?",
+        "SELECT username, added_at, city, options, posts, vip, last_active FROM vendors WHERE username=?",
         (username,)
     )
     return cursor.fetchone()
@@ -1103,19 +1166,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message_id = query.message.message_id
                 user_id = user.id
         
-                if message_id not in post_interests:
-                    post_interests[message_id] = 0
-                    post_users[message_id] = set()
-        
-                # 🔒 1 USER = 1 ZAINTERESOWANIE
-                if user_id in post_users[message_id]:
+                if has_user_interested(message_id, user_id):
                     await query.answer("Już zaznaczyłeś zainteresowanie.")
                     return
         
-                post_users[message_id].add(user_id)
-                post_interests[message_id] += 1
+                added = add_interest(message_id, user_id)
         
-                count = post_interests[message_id]
+                if not added:
+                    await query.answer("Już zaznaczyłeś zainteresowanie.")
+                    return
+        
+                count = get_interest_count(message_id)
         
                 contact_button = query.message.reply_markup.inline_keyboard[0][0]
                 username = contact_button.url.replace("https://t.me/", "")
@@ -1137,8 +1198,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
                 await query.answer("Dodano zainteresowanie ⭐")
         
-                # 🔥 HOT OFFER (TYLKO WTS + VIP)
-                if count == 5:
+                # HOT OFFER
+                if count >= 5:
         
                     vendor = get_vendor(username)
         
@@ -1158,14 +1219,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 "message_id": message_id
                             }
                         )
-        
-                        try:
-                            await query.message.reply_text(
-                                "🔥 <b>HOT OFFER</b>\nOgłoszenie zdobyło duże zainteresowanie!",
-                                parse_mode="HTML"
-                            )
-                        except:
-                            pass
         
             except Exception as e:
         
@@ -1767,9 +1820,9 @@ async def finalize_publish(update, context):
                 "legit_link": context.user_data.get("legit_link"),
             }
     
-                            set_last_post(user.id)
-                            increment_posts(username)
-                            update_last_active(username)
+            set_last_post(user.id)
+            increment_posts(username)
+            update_last_active(username)
 
         # ================= WTB =================
         elif post_type == "WTB":
@@ -1897,6 +1950,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
