@@ -33,6 +33,9 @@ VIP_GIF_URL = os.getenv("VIP_GIF_URL")
 
 # ================= FAST POST MEMORY (DODANE) =================
 last_ads = {}
+# ================= INTEREST SYSTEM =================
+post_interests = {}
+post_users = {}
 # ================= GLOBAL CALLBACK LOCK =================
 active_callbacks = set()
 
@@ -126,7 +129,19 @@ def get_product_emoji(name: str) -> str:
     normalized = normalize_text(name)
 
     product_groups = {
+        
+        "🐴": [
+            "keta", "ketamina", "ketini"
+        ],
 
+        "🕶": [
+            "oxy", "dolory", "okulary"
+        ],
+        
+        "🍪": [
+            "cookies", "ciasteczka"
+        ],
+        
         "📑": [
             "recka", "recepty", "recepta", "recki"
         ],
@@ -140,14 +155,16 @@ def get_product_emoji(name: str) -> str:
         ],
         
         "🇵🇱": [
-            "feta", "polak", "krajowa", "ryba", "feciura"
+            "feta", "polak", "krajowa", "ryba", "feciura",
+            "feciurka",
         ],
 
         "💜": [
             "pix", "pixy", "piksy", "piksi",
             "eksta", "exta", "extasy", "ecstasy",
             "mitsubishi", "lego", "superman", "rolls",
-            "pharaoh", "tesla", "bluepunisher", "cukierki"
+            "pharaoh", "tesla", "bluepunisher", "cukierki",
+            "talerze"
         ],
 
         "💎": [
@@ -155,7 +172,7 @@ def get_product_emoji(name: str) -> str:
             "kryx", "krysztal", "kryształ",
             "crystal", "ice",
             "mefedron", "mefa", "mef", "kamien", "kamień", "bezwonny",
-            "m3ff", "ewa"
+            "m3ff", "ewa", "eufo", "kryx", "mdma kryx"
         ],
 
         "❄️": [
@@ -170,18 +187,21 @@ def get_product_emoji(name: str) -> str:
 
         "🌿": [
             "weed", "buch", "jazz", "jaaz",
-            "trawa", "ziolo", "zielone", "buszek", "haze", "cali"
+            "trawa", "ziolo", "zielone", "buszek", "haze", "cali",
+            "amnezia", "amnezja", "calli"
         ],
 
         "🍫": [
-            "hasz", "haszysz", "czekolada", "haszyk"
+            "hasz", "haszysz", "czekolada", "haszyk", "hash",
+            "h4sh"
         ],
 
         "💊": [
             "xanax", "alpra", "alprazolam",
             "clonazepam", "rivotril", "diazepam",
             "tabs", "tabsy", "tabletki",
-            "pigula", "piguły", "pigułki", "xani", "xanii"
+            "pigula", "piguły", "pigułki", "xani", "xanii", 
+            "alprox", 
         ],
 
         "💨": [
@@ -406,7 +426,21 @@ def vip_template(username, content, vendor_data, city, options, shop_link=None, 
         "💫 <b>Premium Quality</b>\n"
         "⚜️ <b>Discretion • Reputation • Prestige</b>"
     )
-    
+
+
+# ================= HOT OFFER UNPIN =================
+async def unpin_hot_offer(context):
+
+    job = context.job
+
+    try:
+        await context.bot.unpin_chat_message(
+            chat_id=job.data["chat_id"],
+            message_id=job.data["message_id"]
+        )
+    except:
+        pass
+        
 # ================= AUTO SYSTEM =================
 async def auto_messages(context: ContextTypes.DEFAULT_TYPE):
 
@@ -1006,12 +1040,94 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += f"<b>@{v[0]}</b>{vip_badge} | OD {v[1]} | OGŁOSZEŃ: {v[2]}\n"
             await query.edit_message_text(text or "<b>BRAK.</b>", parse_mode="HTML")
             return
-    
+            # ================= LIST VENDOR =================
+        
         if query.data in ["ADD_VENDOR", "REMOVE_VENDOR"] and user.id == ADMIN_ID:
             context.user_data["admin_action"] = query.data
             await query.edit_message_text("<b>PODAJ @USERNAME:</b>", parse_mode="HTML")
             return
     
+
+        # ================= INTEREST SYSTEM =================
+        # ================= INTEREST SYSTEM =================
+        if query.data.startswith("INTEREST_"):
+        
+            try:
+        
+                message_id = query.message.message_id
+                user_id = user.id
+        
+                if message_id not in post_interests:
+                    post_interests[message_id] = 0
+                    post_users[message_id] = set()
+        
+                # 🔒 1 USER = 1 ZAINTERESOWANIE
+                if user_id in post_users[message_id]:
+                    await query.answer("Już zaznaczyłeś zainteresowanie.")
+                    return
+        
+                post_users[message_id].add(user_id)
+                post_interests[message_id] += 1
+        
+                count = post_interests[message_id]
+        
+                contact_button = query.message.reply_markup.inline_keyboard[0][0]
+                username = contact_button.url.replace("https://t.me/", "")
+        
+                new_keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton(
+                            "📩 KONTAKT",
+                            url=f"https://t.me/{username}"
+                        ),
+                        InlineKeyboardButton(
+                            f"⭐ ZAINTERESOWANI ({count})",
+                            callback_data="INTEREST_COUNT"
+                        )
+                    ]
+                ])
+        
+                await query.edit_message_reply_markup(reply_markup=new_keyboard)
+        
+                await query.answer("Dodano zainteresowanie ⭐")
+        
+                # 🔥 HOT OFFER (TYLKO WTS + VIP)
+                if count == 5:
+        
+                    vendor = get_vendor(username)
+        
+                    if vendor and int(vendor[5]) == 1:
+        
+                        await context.bot.pin_chat_message(
+                            chat_id=query.message.chat_id,
+                            message_id=message_id,
+                            disable_notification=True
+                        )
+        
+                        context.job_queue.run_once(
+                            unpin_hot_offer,
+                            7200,
+                            data={
+                                "chat_id": query.message.chat_id,
+                                "message_id": message_id
+                            }
+                        )
+        
+                        try:
+                            await query.message.reply_text(
+                                "🔥 <b>HOT OFFER</b>\nOgłoszenie zdobyło duże zainteresowanie!",
+                                parse_mode="HTML"
+                            )
+                        except:
+                            pass
+        
+            except Exception as e:
+        
+                print("INTEREST ERROR:", e)
+                await query.answer("Błąd licznika.", show_alert=True)
+        
+            return
+            
         # ================= FAST POST =================
         # ================= FAST POST =================
         if query.data == "FAST_POST":
@@ -1471,6 +1587,7 @@ async def finalize_publish(update, context):
     active_publications.add(user.id)
 
     try:
+
         print("=== FINALIZE START ===")
 
         city_map = {
@@ -1509,18 +1626,16 @@ async def finalize_publish(update, context):
         if "wts_products" in context.user_data:
 
             content_lines = []
+
             for p in context.user_data.get("wts_products", []):
                 content_lines.append(f"{get_product_emoji(p)} {smart_mask_caps(p)}")
 
             content = "\n".join(content_lines)
+
             vendor_data = get_vendor(username)
 
-            # ===== VIP =====
+            # ===== VIP VENDOR =====
             if vendor_data and int(vendor_data[5]) == 1:
-
-                if not VIP_GIF_URL:
-                    await user.send_message("❌ VIP_GIF_URL nie ustawione w ENV.")
-                    return
 
                 caption = vip_template(
                     username=username,
@@ -1539,11 +1654,20 @@ async def finalize_publish(update, context):
                     caption=caption,
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                        [
+                            InlineKeyboardButton(
+                                "📩 KONTAKT",
+                                url=f"https://t.me/{username}"
+                            ),
+                            InlineKeyboardButton(
+                                "⭐ ZAINTERESOWANI (0)",
+                                callback_data="INTEREST_COUNT"
+                            )
+                        ]
                     ])
                 )
 
-            # ===== NORMAL =====
+            # ===== NORMAL VENDOR =====
             else:
 
                 since = vendor_data[1] if vendor_data else "-"
@@ -1551,14 +1675,18 @@ async def finalize_publish(update, context):
 
                 caption = (
                     "💎 <b>WTS MARKET</b> 💎\n\n"
+
                     "📜 <b>VERIFIED VENDOR</b>\n"
                     f"📅 <b>OD:</b> {since}\n"
                     f"📊 <b>OGŁOSZEŃ:</b> {posts}\n\n"
+
                     f"👤 <b>@{username}</b>\n"
                     f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
+
                     "<code>──────────────────</code>\n"
                     f"{content}\n"
                     "<code>──────────────────</code>\n\n"
+
                     "⚡ <b>OFFICIAL MARKETPLACE</b>"
                 )
 
@@ -1569,11 +1697,20 @@ async def finalize_publish(update, context):
                     caption=caption,
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                        [
+                            InlineKeyboardButton(
+                                "📩 KONTAKT",
+                                url=f"https://t.me/{username}"
+                            ),
+                            InlineKeyboardButton(
+                                "⭐ ZAINTERESOWANI (0)",
+                                callback_data="INTEREST_COUNT"
+                            )
+                        ]
                     ])
                 )
 
-            # ===== ZAPIS WTS (VIP + NORMAL) =====
+            # ===== ZAPIS OSTATNIEGO OGŁOSZENIA =====
             last_ads[user.id] = {
                 "products": list(context.user_data.get("wts_products", [])),
                 "city": context.user_data.get("city"),
@@ -1588,12 +1725,15 @@ async def finalize_publish(update, context):
         # ================= WTB =================
         elif post_type == "WTB":
 
-            masked_content = smart_mask_caps(context.user_data.get("content", ""))
+            masked_content = smart_mask_caps(
+                context.user_data.get("content", "")
+            )
 
             caption = (
                 "🛒 <b>WTB MARKET</b>\n\n"
                 f"👤 <b>@{username}</b>\n"
                 f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
+
                 "<code>───────────────</code>\n"
                 f"<b>{masked_content}</b>\n"
                 "<code>───────────────</code>"
@@ -1606,19 +1746,31 @@ async def finalize_publish(update, context):
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                    [
+                        InlineKeyboardButton(
+                            "📩 KONTAKT",
+                            url=f"https://t.me/{username}"
+                        ),
+                        InlineKeyboardButton(
+                            "⭐ ZAINTERESOWANI (0)",
+                            callback_data="INTEREST_COUNT"
+                        )
+                    ]
                 ])
             )
 
         # ================= WTT =================
         elif post_type == "WTT":
 
-            masked_content = smart_mask_caps(context.user_data.get("content", ""))
+            masked_content = smart_mask_caps(
+                context.user_data.get("content", "")
+            )
 
             caption = (
                 "🔁 <b>WTT MARKET</b>\n\n"
                 f"👤 <b>@{username}</b>\n"
                 f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
+
                 "<code>───────────────</code>\n"
                 f"<b>{masked_content}</b>\n"
                 "<code>───────────────</code>"
@@ -1631,7 +1783,16 @@ async def finalize_publish(update, context):
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📩 KONTAKT", url=f"https://t.me/{username}")]
+                    [
+                        InlineKeyboardButton(
+                            "📩 KONTAKT",
+                            url=f"https://t.me/{username}"
+                        ),
+                        InlineKeyboardButton(
+                            "⭐ ZAINTERESOWANI (0)",
+                            callback_data="INTEREST_COUNT"
+                        )
+                    ]
                 ])
             )
 
@@ -1641,14 +1802,20 @@ async def finalize_publish(update, context):
             return
 
         context.user_data.clear()
+
         print("=== FINALIZE SUCCESS ===")
 
     except Exception as e:
+
         print("=== FINALIZE ERROR ===")
         print(e)
-        await user.send_message(f"❌ Błąd publikacji:\n{e}")
+
+        await user.send_message(
+            f"❌ Błąd publikacji:\n{e}"
+        )
 
     finally:
+
         active_publications.discard(user.id)
         
     
@@ -1681,6 +1848,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
