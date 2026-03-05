@@ -61,9 +61,15 @@ CREATE TABLE IF NOT EXISTS vendors (
     city TEXT,
     options TEXT,
     posts INTEGER DEFAULT 0,
-    vip INTEGER DEFAULT 0
+    vip INTEGER DEFAULT 0,
+    last_active INTEGER DEFAULT 0
 )
 """)
+
+try:
+    cursor.execute("ALTER TABLE vendors ADD COLUMN last_active INTEGER DEFAULT 0")
+except sqlite3.OperationalError:
+    pass
 
 # Migracja dla istniejących baz (jeśli kolumna vip już jest, to poleci błąd -> ignorujemy)
 try:
@@ -385,7 +391,40 @@ def clear_all_cooldowns():
     cursor.execute("DELETE FROM cooldowns")
     conn.commit()
     
+# ================= VENDOR ACTIVITY =================
+def update_last_active(username):
 
+    cursor.execute(
+        "UPDATE vendors SET last_active=? WHERE username=?",
+        (int(time.time()), username)
+    )
+
+    conn.commit()
+
+
+def get_last_active_text(timestamp):
+
+    if not timestamp:
+        return "⚫ OFFLINE"
+
+    diff = int(time.time()) - int(timestamp)
+
+    if diff < 120:
+        return "🟢 ONLINE"
+
+    minutes = diff // 60
+
+    if minutes < 60:
+        return f"🕒 {minutes} min temu"
+
+    hours = minutes // 60
+
+    if hours < 24:
+        return f"🕒 {hours} h temu"
+
+    days = hours // 24
+
+    return f"🕒 {days} dni temu"
 
 # ================= SUPER VIP TEMPLATE =================
 def vip_template(username, content, vendor_data, city, options, shop_link=None, legit_link=None):
@@ -394,8 +433,11 @@ def vip_template(username, content, vendor_data, city, options, shop_link=None, 
     if options:
         option_text = " | " + " | ".join(options)
 
+    last_active = get_last_active_text(vendor_data[6])
+
+
     # ===== GOLD LINKS SECTION =====
-    links_block = ""
+    links_block = ""    
     if shop_link or legit_link:
 
         links_block = "\n"
@@ -416,6 +458,7 @@ def vip_template(username, content, vendor_data, city, options, shop_link=None, 
         f"📊 <b>Published offers:</b> {vendor_data[4]}\n\n"
 
         f"👤 <b>@{username}</b>\n"
+        f"{last_active}\n"
         f"📍 <b>{city}{option_text} | #3CITY</b>\n"
         f"{links_block}\n"
 
@@ -586,6 +629,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]]
 
     user = update.effective_user
+
+    if user.username:
+        update_last_active(user.username.lower())
 
     # ✅ VIP VENDOR przycisk (tylko jeśli vendor ma vip=1)
     if user.username and is_vip_vendor(user.username.lower()):
@@ -1633,6 +1679,7 @@ async def finalize_publish(update, context):
             content = "\n".join(content_lines)
 
             vendor_data = get_vendor(username)
+            last_active = get_last_active_text(vendor_data[6]) if vendor_data else ""
 
             # ===== VIP VENDOR =====
             if vendor_data and int(vendor_data[5]) == 1:
@@ -1681,6 +1728,7 @@ async def finalize_publish(update, context):
                     f"📊 <b>OGŁOSZEŃ:</b> {posts}\n\n"
 
                     f"👤 <b>@{username}</b>\n"
+                    f"{last_active}\n"
                     f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
 
                     "<code>──────────────────</code>\n"
@@ -1719,8 +1767,9 @@ async def finalize_publish(update, context):
                 "legit_link": context.user_data.get("legit_link"),
             }
 
-            set_last_post(user.id)
-            increment_posts(username)
+                set_last_post(user.id)
+                increment_posts(username)
+                update_last_active(username)
 
         # ================= WTB =================
         elif post_type == "WTB":
@@ -1848,6 +1897,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
