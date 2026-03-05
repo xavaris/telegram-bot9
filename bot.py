@@ -1766,10 +1766,10 @@ async def finalize_publish(update, context):
                 "shop_link": context.user_data.get("shop_link"),
                 "legit_link": context.user_data.get("legit_link"),
             }
-
-                set_last_post(user.id)
-                increment_posts(username)
-                update_last_active(username)
+    
+                            set_last_post(user.id)
+                            increment_posts(username)
+                            update_last_active(username)
 
         # ================= WTB =================
         elif post_type == "WTB":
@@ -1897,6 +1897,7 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
 
