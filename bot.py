@@ -2071,7 +2071,7 @@ async def finalize_publish(update, context):
 
                 msg = await context.bot.send_animation(
                     chat_id=GROUP_ID,
-                    message_thread_id=VIP_TOPIC,
+                    message_thread_id=WTS_TOPIC,
                     animation=VIP_GIF_URL,
                     caption=caption,
                     parse_mode="HTML",
@@ -2317,6 +2317,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
