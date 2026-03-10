@@ -2183,43 +2183,49 @@ async def start_health_server():
     
 def main():
 
-    app = Application.builder().token(TOKEN).build()
+    async def start_all():
 
-    app.add_handler(CommandHandler("start", start))
-
-    # ADMIN COMMANDS
-    app.add_handler(CommandHandler("addvendor", cmd_addvendor))
-    app.add_handler(CommandHandler("addvendors", cmd_addvendors))
-    app.add_handler(CommandHandler("removevendor", cmd_removevendor))
-    app.add_handler(CommandHandler("listvendors", cmd_listvendors))
-
-    # VIP COMMANDS
-    app.add_handler(CommandHandler("setvip", cmd_setvip))
-    app.add_handler(CommandHandler("unsetvip", cmd_unsetvip))
-
-    # CALLBACKS + MESSAGES
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    if app.job_queue:
-        app.job_queue.run_repeating(
-            auto_messages,
-            interval=VIP_AUTO_INTERVAL,
-            first=60
-        )
-
-    async def run():
-
+        # start health server
         await start_health_server()
 
         print("Bot started.")
 
-        await app.run_polling()
+        app = Application.builder().token(TOKEN).build()
 
-    asyncio.run(run())
+        app.add_handler(CommandHandler("start", start))
 
+        # ADMIN COMMANDS
+        app.add_handler(CommandHandler("addvendor", cmd_addvendor))
+        app.add_handler(CommandHandler("addvendors", cmd_addvendors))
+        app.add_handler(CommandHandler("removevendor", cmd_removevendor))
+        app.add_handler(CommandHandler("listvendors", cmd_listvendors))
+
+        # VIP COMMANDS
+        app.add_handler(CommandHandler("setvip", cmd_setvip))
+        app.add_handler(CommandHandler("unsetvip", cmd_unsetvip))
+
+        # CALLBACKS + MESSAGES
+        app.add_handler(CallbackQueryHandler(button_handler))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        if app.job_queue:
+            app.job_queue.run_repeating(
+                auto_messages,
+                interval=VIP_AUTO_INTERVAL,
+                first=60
+            )
+
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling()
+
+        await asyncio.Event().wait()
+
+    asyncio.run(start_all())
+    
 if __name__ == "__main__":
     main()
+
 
 
 
