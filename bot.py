@@ -24,6 +24,8 @@ from telegram.ext import (
 # ================= ENV =================
 # ================= ENV =================
 TOKEN = os.getenv("KEY")
+if not TOKEN:
+    raise RuntimeError("TOKEN not set in ENV")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 WTB_TOPIC = int(os.getenv("WTB"))
 WTS_TOPIC = int(os.getenv("WTS"))
@@ -73,6 +75,7 @@ if db_dir and not os.path.exists(db_dir):
     os.makedirs(db_dir, exist_ok=True)
 
 conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
+conn.row_factory = sqlite3.Row
 conn.execute("PRAGMA journal_mode=WAL")
 conn.execute("PRAGMA synchronous=NORMAL")
 
@@ -332,6 +335,9 @@ PRODUCT_ALIASES = {
 }
 
 
+
+
+
 # ================= REVERSE LEET =================
 def reverse_leet(text: str) -> str:
     result = ""
@@ -354,18 +360,86 @@ def normalize_text(text: str):
 
     return text
 
+# ================= PRODUCT FAST INDEX =================
 
+PRODUCT_EMOJI = {
+    "Książka Weterynaryjna": "🐴",
+    "Okulary Kolekcjonerskie": "🕶",
+    "Ciastka Domowe": "🍪",
+    "Dokument Medyczny": "📑",
+    "Poduszka Premium": "💤",
+    "Liście Jesienne": "🍁",
+    "Produkt Lokalny": "🇵🇱",
+    "Pastylki Kolekcjonerskie": "💜",
+    "Pastylka Kolekcjonerska": "💜",
+    "Książka o Kamieniach": "💎",
+    "Książka o Śniegu": "❄️",
+    "Książka o Drzewach": "🌿",
+    "Książka o Czekoladzie": "🍫",
+    "Kapsuły Kolekcjonerskie": "💊",
+    "Elektroniczny Inhalator": "💨",
+    "Kartridż Kolekcjonerski": "🛢",
+    "Perfumy": "🧴",
+    "Karta Kolekcjonerska": "💳"
+}
+
+ALIAS_INDEX = {}
+
+for alias, product in PRODUCT_ALIASES.items():
+    normalized = normalize_text(alias)
+    ALIAS_INDEX[normalized] = product
+
+
+def detect_product(word: str):
+
+    normalized = normalize_text(word)
+
+    if normalized in ALIAS_INDEX:
+        product = ALIAS_INDEX[normalized]
+        emoji = PRODUCT_EMOJI.get(product, "📦")
+        return product, emoji
+
+    return None, None
+
+
+def replace_products_in_sentence(text: str):
+
+    words = text.split()
+    result = []
+
+    for word in words:
+
+        product, _ = detect_product(word)
+
+        if product:
+            result.append(product.upper())
+        else:
+            result.append(word)
+
+    return " ".join(result)
+
+
+def format_product_line(name: str):
+
+    product, emoji = detect_product(name)
+
+    if product:
+        return f"{emoji} {product.upper()}"
+
+    return f"📦 {smart_mask_caps(name)}"
+    
 # ================= SEMANTIC MASK =================
 def semantic_mask(text: str):
 
     normalized = normalize_text(text)
 
-    for key, alias in PRODUCT_ALIASES.items():
-        if key in normalized:
-            return alias
+    words = re.findall(r"[a-z0-9]+", normalized)
+
+    for word in words:
+        if word in ALIAS_INDEX:
+            return ALIAS_INDEX[word]
 
     return text
-
 
 # ================= FINAL MASK =================
 def smart_mask_caps(text: str):
@@ -852,6 +926,7 @@ async def auto_messages(context: ContextTypes.DEFAULT_TYPE):
 
 # ================= VIP AUTO POST SYSTEM =================
 async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
+
     job = context.job
     data = job.data
 
@@ -859,6 +934,11 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
     ad_data = data.get("ad_data")
 
     if not username or not ad_data:
+        return
+
+    vendor = get_vendor(username)
+
+    if not vendor:
         return
 
     city_map = {
@@ -882,14 +962,14 @@ async def vip_auto_post(context: ContextTypes.DEFAULT_TYPE):
     ]
 
     content = "\n".join(
-        f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+        format_product_line(p)
         for p in ad_data.get("products", [])
     )
 
     caption = vip_template(
         username=username,
         content=content,
-        vendor_data=get_vendor(username),
+        vendor_data=vendor,
         city=city,
         options=options,
         shop_link=ad_data.get("shop_link"),
@@ -1256,6 +1336,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return
 
                 old_jobs = context.job_queue.get_jobs_by_name(f"vip_auto_{user.id}")
+
                 for job in old_jobs:
                     job.schedule_removal()
 
@@ -1282,7 +1363,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
 
                 content = "\n".join(
-                    f"{get_product_emoji(p)} {smart_mask_caps(p)}"
+                    format_product_line(p)
                     for p in ad_data.get("products", [])
                 )
 
@@ -1321,6 +1402,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 await query.answer("AUTO START WŁĄCZONY 🚀")
+
                 await vip_panel(update, context)
 
             finally:
@@ -1967,7 +2049,7 @@ async def finalize_publish(update, context):
             content_lines = []
 
             for p in context.user_data.get("wts_products", []):
-                content_lines.append(f"{get_product_emoji(p)} {smart_mask_caps(p)}")
+                content_lines.append(format_product_line(p))
 
             content = "\n".join(content_lines)
 
@@ -1986,9 +2068,9 @@ async def finalize_publish(update, context):
                     legit_link=context.user_data.get("legit_link")
                 )
 
-                msg = await context.bot.send_animation(
+               msg = await context.bot.send_animation(
                     chat_id=GROUP_ID,
-                    message_thread_id=WTS_TOPIC,
+                    message_thread_id=VIP_TOPIC,
                     animation=VIP_GIF_URL,
                     caption=caption,
                     parse_mode="HTML",
@@ -2005,6 +2087,8 @@ async def finalize_publish(update, context):
                         ]
                     ])
                 )
+                
+                update_last_active(username)
 
             else:
 
@@ -2069,7 +2153,7 @@ async def finalize_publish(update, context):
         # ================= WTB =================
         elif post_type == "WTB":
 
-            masked_content = smart_mask_caps(
+            masked_content = replace_products_in_sentence(
                 context.user_data.get("content", "")
             )
 
@@ -2105,7 +2189,7 @@ async def finalize_publish(update, context):
         # ================= WTT =================
         elif post_type == "WTT":
 
-            masked_content = smart_mask_caps(
+            masked_content = replace_products_in_sentence(
                 context.user_data.get("content", "")
             )
 
@@ -2215,16 +2299,13 @@ def main():
                 first=60
             )
 
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling()
-
-        await asyncio.Event().wait()
+        await app.run_polling()
 
     asyncio.run(start_all())
     
 if __name__ == "__main__":
     main()
+
 
 
 
