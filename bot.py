@@ -2068,7 +2068,8 @@ async def finalize_publish(update, context):
                     shop_link=context.user_data.get("shop_link"),
                     legit_link=context.user_data.get("legit_link")
                 )
-                 msg = await context.bot.send_animation(
+
+                msg = await context.bot.send_animation(
                     chat_id=GROUP_ID,
                     message_thread_id=VIP_TOPIC,
                     animation=VIP_GIF_URL,
@@ -2087,9 +2088,9 @@ async def finalize_publish(update, context):
                         ]
                     ])
                 )
-                
-                update_last_active(username)
 
+                update_last_active(username)
+                
             else:
 
                 since = vendor_data[1] if vendor_data else "-"
@@ -2305,6 +2306,7 @@ def main():
     
 if __name__ == "__main__":
     main()
+
 
 
 
