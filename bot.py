@@ -2208,24 +2208,27 @@ def main():
             first=60
         )
 
-    async def run():
+    async def start_all():
 
         await start_health_server()
 
         print("Bot started.")
 
-        while True:
-            try:
-                await app.run_polling()
-            except Exception as e:
-                print("Polling crashed:", e)
-                await asyncio.sleep(5)
+        await app.initialize()
+        await app.start()
 
-    asyncio.run(run())
+        # polling telegram
+        await app.bot.initialize()
+        await app.bot.get_me()
+
+        await app.run_polling()
+
+    asyncio.run(start_all())
 
 
 if __name__ == "__main__":
     main()
+
 
 
 
