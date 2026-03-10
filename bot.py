@@ -2068,8 +2068,7 @@ async def finalize_publish(update, context):
                     shop_link=context.user_data.get("shop_link"),
                     legit_link=context.user_data.get("legit_link")
                 )
-
-               msg = await context.bot.send_animation(
+                 msg = await context.bot.send_animation(
                     chat_id=GROUP_ID,
                     message_thread_id=VIP_TOPIC,
                     animation=VIP_GIF_URL,
@@ -2306,6 +2305,7 @@ def main():
     
 if __name__ == "__main__":
     main()
+
 
 
 
