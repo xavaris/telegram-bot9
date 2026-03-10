@@ -1428,7 +1428,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             url=f"https://t.me/{username}"
                         ),
                         InlineKeyboardButton(
-                            f"⭐ ZAINTERESOWANI ({count})",
+                            f"⭐ LIKE({count})",
                             callback_data="INTEREST_ADD"
                         )
                     ]
@@ -1436,7 +1436,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
                 await query.edit_message_reply_markup(reply_markup=new_keyboard)
         
-                await query.answer("Dodano zainteresowanie ⭐")
+                await query.answer("Dodano LIKE ⭐")
         
                 # HOT OFFER
                 if count >= 5:
@@ -2225,6 +2225,7 @@ def main():
     
 if __name__ == "__main__":
     main()
+
 
 
 
