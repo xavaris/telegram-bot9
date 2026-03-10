@@ -2,12 +2,16 @@ import os
 import re
 import sqlite3
 import time
+import asyncio
 from datetime import datetime
+from aiohttp import web
+
 from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -31,6 +35,26 @@ VIP_LOGO_URL = os.getenv("VIP_LOGO_URL")
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 VIP_GIF_URL = os.getenv("VIP_GIF_URL")
 
+# ================= COOLDOWNS =================
+POST_COOLDOWN = 12 * 60 * 60   # 12 godzin
+VIP_AUTO_INTERVAL = 12 * 60 * 60
+
+# ================= AUTO DELETE =================
+AUTO_DELETE_TIME = 14 * 60 * 60  # 14 godzin
+
+# ================= AUTO DELETE MESSAGE =================
+async def auto_delete_message(context):
+
+    job = context.job
+
+    try:
+        await context.bot.delete_message(
+            chat_id=job.data["chat_id"],
+            message_id=job.data["message_id"]
+        )
+    except:
+        pass
+        
 # ================= FAST POST MEMORY (DODANE) =================
 last_ads = {}
 # ================= GLOBAL CALLBACK LOCK =================
@@ -48,7 +72,10 @@ db_dir = os.path.dirname(DB_PATH)
 if db_dir and not os.path.exists(db_dir):
     os.makedirs(db_dir, exist_ok=True)
 
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("PRAGMA synchronous=NORMAL")
+
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -293,6 +320,7 @@ PRODUCT_ALIASES = {
     "armani": "Perfumy",
     "versace": "Perfumy",
     "tomford": "Perfumy",
+    "tom ford": "Perfumy",
 
     # 💳 sim
     "sim": "Karta Kolekcjonerska",
@@ -1120,7 +1148,7 @@ async def vip_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     auto_status = "🟢 AKTYWNY" if active_jobs else "🔴 WYŁĄCZONY"
 
     keyboard = [
-        [InlineKeyboardButton("🚀 AUTO START (6H)", callback_data="VIP_AUTO_START")],
+        [InlineKeyboardButton("🚀 AUTO START (12H)", callback_data="VIP_AUTO_START")],
         [InlineKeyboardButton("🛑 AUTO STOP", callback_data="VIP_AUTO_STOP")],
         [InlineKeyboardButton("📊 MOJE STATY", callback_data="VIP_STATS")],
         [InlineKeyboardButton("⬅️ WSTECZ", callback_data="VIP_BACK_START")]
@@ -1283,8 +1311,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 context.job_queue.run_repeating(
                     vip_auto_post,
-                    interval=21600,
-                    first=21600,
+                    interval=VIP_AUTO_INTERVAL,
+                    first=VIP_AUTO_INTERVAL,
                     name=f"vip_auto_{user.id}",
                     data={
                         "username": username,
@@ -1370,7 +1398,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ================= INTEREST SYSTEM =================
         # ================= INTEREST SYSTEM =================
-        if query.data.startswith("INTEREST_"):
+        # ================= INTEREST SYSTEM =================
+        if query.data == "INTEREST_ADD":
         
             try:
         
@@ -1400,7 +1429,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         ),
                         InlineKeyboardButton(
                             f"⭐ ZAINTERESOWANI ({count})",
-                            callback_data="INTEREST_COUNT"
+                            callback_data="INTEREST_ADD"
                         )
                     ]
                 ])
@@ -1437,13 +1466,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.answer("Błąd licznika.", show_alert=True)
         
             return
-            
         # ================= FAST POST =================
         # ================= FAST POST =================
         if query.data == "FAST_POST":
 
-            if time.time() - get_last_post(user.id) < 6 * 60 * 60:
-                await query.answer("COOLDOWN 6H.", show_alert=True)
+            if time.time() - get_last_post(user.id) < POST_COOLDOWN:
+                await query.answer("COOLDOWN 12H.", show_alert=True)
                 return
 
             data = last_ads.get(user.id)
@@ -1460,8 +1488,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["wts_products"] = list(data.get("products", []))
             context.user_data["city"] = data.get("city")
             context.user_data["options"] = list(data.get("options", []))
-            context.user_data["shop_link"] = data.get("shop_link")
-            context.user_data["legit_link"] = data.get("legit_link")
+            context.user_data["shop_link"] = data.get("shop_link") or None
+            context.user_data["legit_link"] = data.get("legit_link") or None
 
             await finalize_publish(update, context)
     
@@ -1568,8 +1596,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text("<b>TYLKO VENDOR.</b>", parse_mode="HTML")
                 return
     
-            if time.time() - get_last_post(user.id) < 6 * 60 * 60:
-                await query.edit_message_text("<b>COOLDOWN 6H.</b>", parse_mode="HTML")
+            if time.time() - get_last_post(user.id) < POST_COOLDOWN:
+                await query.edit_message_text("<b>COOLDOWN 12H.</b>", parse_mode="HTML")
                 return
     
             context.user_data["vendor"] = vendor
@@ -1877,7 +1905,6 @@ async def ask_product_count(query):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 # ================= FINALIZE PUBLISH =================
-# ================= FINALIZE PUBLISH =================
 async def finalize_publish(update, context):
 
     user = update.effective_user
@@ -1886,7 +1913,10 @@ async def finalize_publish(update, context):
         return
 
     if not user.username:
-        await user.send_message("❌ Musisz mieć ustawiony @username.")
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="❌ Musisz mieć ustawiony @username."
+        )
         return
 
     username = user.username.lower()
@@ -1920,12 +1950,11 @@ async def finalize_publish(update, context):
 
         post_type = context.user_data.pop("type", None)
 
-        print("POST TYPE:", post_type)
-        print("CITY:", city)
-        print("OPTIONS:", options)
-
         if not city:
-            await user.send_message("❌ Nie wybrano miasta.")
+            await context.bot.send_message(
+                chat_id=user.id,
+                text="❌ Nie wybrano miasta."
+            )
             return
 
         option_text = ""
@@ -1945,7 +1974,6 @@ async def finalize_publish(update, context):
             vendor_data = get_vendor(username)
             last_active = get_last_active_text(vendor_data[6]) if vendor_data else ""
 
-            # ===== VIP VENDOR =====
             if vendor_data and int(vendor_data[5]) == 1:
 
                 caption = vip_template(
@@ -1958,7 +1986,7 @@ async def finalize_publish(update, context):
                     legit_link=context.user_data.get("legit_link")
                 )
 
-                await context.bot.send_animation(
+                msg = await context.bot.send_animation(
                     chat_id=GROUP_ID,
                     message_thread_id=WTS_TOPIC,
                     animation=VIP_GIF_URL,
@@ -1971,14 +1999,13 @@ async def finalize_publish(update, context):
                                 url=f"https://t.me/{username}"
                             ),
                             InlineKeyboardButton(
-                                "⭐ ZAINTERESOWANI (0)",
-                                callback_data="INTEREST_COUNT"
+                                "⭐ LIKE (0)",
+                                callback_data="INTEREST_ADD"
                             )
                         ]
                     ])
                 )
 
-            # ===== NORMAL VENDOR =====
             else:
 
                 since = vendor_data[1] if vendor_data else "-"
@@ -1986,23 +2013,19 @@ async def finalize_publish(update, context):
 
                 caption = (
                     "💎 <b>WTS MARKET</b> 💎\n\n"
-
                     "📜 <b>VERIFIED VENDOR</b>\n"
                     f"📅 <b>OD:</b> {since}\n"
                     f"📊 <b>OGŁOSZEŃ:</b> {posts}\n\n"
-
                     f"👤 <b>@{username}</b>\n"
                     f"{last_active}\n"
                     f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-
                     "<code>──────────────────</code>\n"
                     f"{content}\n"
                     "<code>──────────────────</code>\n\n"
-
                     "⚡ <b>OFFICIAL MARKETPLACE</b>"
                 )
 
-                await context.bot.send_photo(
+                msg = await context.bot.send_photo(
                     chat_id=GROUP_ID,
                     message_thread_id=WTS_TOPIC,
                     photo=LOGO_URL,
@@ -2015,14 +2038,22 @@ async def finalize_publish(update, context):
                                 url=f"https://t.me/{username}"
                             ),
                             InlineKeyboardButton(
-                                "⭐ ZAINTERESOWANI (0)",
-                                callback_data="INTEREST_COUNT"
+                                "⭐ LIKE (0)",
+                                callback_data="INTEREST_ADD"
                             )
                         ]
                     ])
                 )
 
-            # ===== ZAPIS OSTATNIEGO OGŁOSZENIA =====
+            context.job_queue.run_once(
+                auto_delete_message,
+                AUTO_DELETE_TIME,
+                data={
+                    "chat_id": GROUP_ID,
+                    "message_id": msg.message_id
+                }
+            )
+
             last_ads[user.id] = {
                 "products": list(context.user_data.get("wts_products", [])),
                 "city": context.user_data.get("city"),
@@ -2030,7 +2061,7 @@ async def finalize_publish(update, context):
                 "shop_link": context.user_data.get("shop_link"),
                 "legit_link": context.user_data.get("legit_link"),
             }
-    
+
             set_last_post(user.id)
             increment_posts(username)
             update_last_active(username)
@@ -2046,13 +2077,12 @@ async def finalize_publish(update, context):
                 "🛒 <b>WTB MARKET</b>\n\n"
                 f"👤 <b>@{username}</b>\n"
                 f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-
                 "<code>───────────────</code>\n"
                 f"<b>{masked_content}</b>\n"
                 "<code>───────────────</code>"
             )
 
-            await context.bot.send_photo(
+            msg = await context.bot.send_photo(
                 chat_id=GROUP_ID,
                 message_thread_id=WTB_TOPIC,
                 photo=LOGO_URL,
@@ -2065,8 +2095,8 @@ async def finalize_publish(update, context):
                             url=f"https://t.me/{username}"
                         ),
                         InlineKeyboardButton(
-                            "⭐ ZAINTERESOWANI (0)",
-                            callback_data="INTEREST_COUNT"
+                            "⭐ LIKE (0)",
+                            callback_data="INTEREST_ADD"
                         )
                     ]
                 ])
@@ -2083,13 +2113,12 @@ async def finalize_publish(update, context):
                 "🔁 <b>WTT MARKET</b>\n\n"
                 f"👤 <b>@{username}</b>\n"
                 f"📍 <b>{city}{option_text} | #3CITY</b>\n\n"
-
                 "<code>───────────────</code>\n"
                 f"<b>{masked_content}</b>\n"
                 "<code>───────────────</code>"
             )
 
-            await context.bot.send_photo(
+            msg = await context.bot.send_photo(
                 chat_id=GROUP_ID,
                 message_thread_id=WTT_TOPIC,
                 photo=LOGO_URL,
@@ -2102,16 +2131,18 @@ async def finalize_publish(update, context):
                             url=f"https://t.me/{username}"
                         ),
                         InlineKeyboardButton(
-                            "⭐ ZAINTERESOWANI (0)",
-                            callback_data="INTEREST_COUNT"
+                            "⭐ LIKE (0)",
+                            callback_data="INTEREST_ADD"
                         )
                     ]
                 ])
             )
 
         else:
-            await user.send_message("❌ Nieznany typ ogłoszenia.")
-            print("ERROR: post_type =", post_type)
+            await context.bot.send_message(
+                chat_id=user.id,
+                text="❌ Nieznany typ ogłoszenia."
+            )
             return
 
         context.user_data.clear()
@@ -2120,20 +2151,38 @@ async def finalize_publish(update, context):
 
     except Exception as e:
 
-        print("=== FINALIZE ERROR ===")
-        print(e)
+        print("=== FINALIZE ERROR ===", e)
 
-        await user.send_message(
-            f"❌ Błąd publikacji:\n{e}"
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=f"❌ Błąd publikacji:\n{e}"
         )
 
     finally:
 
         active_publications.discard(user.id)
         
+ # ================= RAILWAY HEALTH CHECK =================
+async def health(request):
+    return web.Response(text="OK")
+
+async def start_health_server():
+
+    port = int(os.getenv("PORT", 8080))
+
+    app = web.Application()
+    app.router.add_get("/", health)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    print(f"Health server running on port {port}")
     
-# ================= MAIN =================
 def main():
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -2144,7 +2193,7 @@ def main():
     app.add_handler(CommandHandler("removevendor", cmd_removevendor))
     app.add_handler(CommandHandler("listvendors", cmd_listvendors))
 
-    # VIP COMMANDS (ADMIN ONLY)
+    # VIP COMMANDS
     app.add_handler(CommandHandler("setvip", cmd_setvip))
     app.add_handler(CommandHandler("unsetvip", cmd_unsetvip))
 
@@ -2153,18 +2202,26 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     if app.job_queue:
-        app.job_queue.run_repeating(auto_messages, interval=21600, first=60)
+        app.job_queue.run_repeating(
+            auto_messages,
+            interval=VIP_AUTO_INTERVAL,
+            first=60
+        )
 
-    app.run_polling(drop_pending_updates=True)
+    async def run():
 
+        await start_health_server()
 
-if __name__ == "__main__":
-    main()
-    
+        print("Bot started.")
 
+        while True:
+            try:
+                await app.run_polling()
+            except Exception as e:
+                print("Polling crashed:", e)
+                await asyncio.sleep(5)
 
-
-
+    asyncio.run(run())
 
 
 
