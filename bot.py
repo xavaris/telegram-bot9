@@ -2208,26 +2208,19 @@ def main():
             first=60
         )
 
-    async def start_all():
+    async def run():
 
         await start_health_server()
 
         print("Bot started.")
 
-        await app.initialize()
-        await app.start()
-
-        # polling telegram
-        await app.bot.initialize()
-        await app.bot.get_me()
-
         await app.run_polling()
 
-    asyncio.run(start_all())
-
+    asyncio.run(run())
 
 if __name__ == "__main__":
     main()
+
 
 
 
