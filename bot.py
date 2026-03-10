@@ -2266,10 +2266,24 @@ async def start_health_server():
 
     print(f"Health server running on port {port}")
     
+async def post_init(application: Application):
+
+    # start Railway health server
+    asyncio.create_task(start_health_server())
+
+    print("Bot started.")
+
+
 def main():
 
-    app = Application.builder().token(TOKEN).build()
+    app = (
+        Application.builder()
+        .token(TOKEN)
+        .post_init(post_init)
+        .build()
+    )
 
+    # START
     app.add_handler(CommandHandler("start", start))
 
     # ADMIN COMMANDS
@@ -2282,10 +2296,13 @@ def main():
     app.add_handler(CommandHandler("setvip", cmd_setvip))
     app.add_handler(CommandHandler("unsetvip", cmd_unsetvip))
 
-    # CALLBACKS + MESSAGES
+    # CALLBACKS
     app.add_handler(CallbackQueryHandler(button_handler))
+
+    # MESSAGES
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+    # AUTO MESSAGES
     if app.job_queue:
         app.job_queue.run_repeating(
             auto_messages,
@@ -2293,12 +2310,9 @@ def main():
             first=60
         )
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_health_server())
-
-    print("Bot started.")
-
-    app.run_polling()
+    app.run_polling(
+        drop_pending_updates=True
+    )
 
 
 if __name__ == "__main__":
